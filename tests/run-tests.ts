@@ -1,5 +1,6 @@
 import { createMemoryRepositories } from '../miniprogram/repositories';
 import { InventoryService, ReminderService } from '../miniprogram/services';
+import type { InventoryMutationClient } from '../miniprogram/services';
 import { InventoryError } from '../miniprogram/utils/errors';
 import { resetIdSequenceForTests } from '../miniprogram/utils/id';
 import type { AddStockInput, CreateItemInput } from '../miniprogram/models';
@@ -197,6 +198,53 @@ const tests: Array<[string, () => Promise<void>]> = [
     assertEqual((await repos.transactions.listByUser(USER_ID)).length, 1, 'duplicate add did not create extra transaction');
   }],
 
+  ['cloud-mode write operations delegate to mutation client', async () => {
+    const { repos } = createContext();
+    const calls: string[] = [];
+    const mutationClient: InventoryMutationClient = {
+      async addStock(input) {
+        calls.push(`add:${input.operationId}`);
+        return {
+          item: { _id: 'cloud-item' },
+          batch: { _id: 'cloud-batch' },
+          transaction: { _id: 'cloud-add-tx' },
+          merged: false,
+        } as never;
+      },
+      async consumeStock(input) {
+        calls.push(`consume:${input.operationId}`);
+        return {
+          affectedBatches: [{ _id: 'cloud-batch', quantity: 2 }],
+          transactions: [{ _id: 'cloud-consume-tx' }],
+        } as never;
+      },
+      async adjustStock(input) {
+        calls.push(`adjust:${input.operationId}`);
+        return {
+          batch: { _id: input.batchId, quantity: input.actualQuantity },
+          transaction: { _id: 'cloud-adjust-tx' },
+          diff: 1,
+        } as never;
+      },
+    };
+    const inventory = new InventoryService(
+      repos,
+      {
+        userId: USER_ID,
+        defaultExpiryWarningDays: 7,
+        now: () => TODAY,
+        mutationClient,
+        requireMutationClientForWrites: true,
+      },
+    );
+
+    await inventory.addStock(stockInput({ operationId: 'op-cloud-add' }));
+    await inventory.consumeStock({ itemId: 'cloud-item', quantity: 1, operationId: 'op-cloud-consume' });
+    await inventory.adjustStock({ batchId: 'cloud-batch', actualQuantity: 3, operationId: 'op-cloud-adjust' });
+
+    assertEqual(calls.join(','), 'add:op-cloud-add,consume:op-cloud-consume,adjust:op-cloud-adjust', 'mutation client calls');
+    assertEqual((await repos.transactions.listByUser(USER_ID)).length, 0, 'delegated writes do not mutate local repositories');
+  }],
   ['repository user isolation prevents known id read and update', async () => {
     const { repos, inventory } = createContext();
     const added = await inventory.addStock(stockInput({ quantity: 2 }));

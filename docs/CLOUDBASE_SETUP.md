@@ -2,6 +2,29 @@
 
 Source of truth: `docs/INVENTORY_APP_V0.1_DESIGN_FREEZE.md`.
 
+## Final Transaction Architecture
+
+CloudBase database transactions are treated as a server-side capability. The mini program client must not rely on `wx.cloud.database().runTransaction`.
+
+Read path:
+
+```text
+Page -> Service -> Cloud Repository -> Cloud Database
+```
+
+Write path for core inventory mutations:
+
+```text
+Page -> Service -> wx.cloud.callFunction -> inventoryWrite Cloud Function -> CloudBase Node SDK -> server-side runTransaction -> Cloud Database
+```
+
+Core mutation actions handled by `cloudfunctions/inventoryWrite`:
+
+- `addStock`
+- `consumeStock`
+- `adjustStock`
+- `cleanupDevItem` for development diagnostics only
+
 ## Environment ID
 
 Configure CloudBase environment in `miniprogram/config/env.ts`:
@@ -20,7 +43,11 @@ Leave empty only when WeChat DevTools is already bound to the intended cloud env
 wx.cloud.init({ env: getCloudEnvId(), traceUser: true })
 ```
 
-`cloudfunctions/getOpenId` returns the trusted platform OpenID for current user. `cloudfunctions/dbInit` documents the expected collections for bootstrap and can later be expanded to seed defaults.
+Required cloud functions:
+
+- `getOpenId`: returns the trusted platform OpenID for current user.
+- `inventoryWrite`: performs core inventory mutations in server-side transactions.
+- `dbInit`: documents expected collections and recommended indexes; it is intentionally non-destructive.
 
 ## Required Collections
 
@@ -37,7 +64,7 @@ restock_items
 settings
 ```
 
-Each user-owned document is scoped by `_openid`. Repository reads and writes also include `_openid` filters, including known `_id` lookups and updates.
+Each user-owned document is scoped by `_openid`. Repository reads include `_openid` filters, including known `_id` lookups. Core writes are scoped by server-side `OPENID` inside cloud functions.
 
 ## Recommended Indexes
 
@@ -61,22 +88,27 @@ If unique indexes are available, prefer `_openid + operationId` for `transaction
 Cloud Database permissions must prevent cross-user access. Minimum expectation:
 
 - A user can read their own documents.
-- A user can create documents scoped to their own identity.
+- A user can create documents scoped to their own identity only through trusted code paths.
 - A user cannot read or update documents owned by another `_openid`.
 
-The Repository layer still applies `_openid` filters; database rules are the second line of defense.
+The Repository layer applies `_openid` filters for reads. The `inventoryWrite` cloud function uses server-side `OPENID` and ignores client-provided user identity.
 
-## Transaction Requirement
+## Consistency Guarantees
 
-Core write operations are wrapped through `InventoryRepositories.runInTransaction` when available:
+`inventoryWrite` wraps core mutation work in server-side transactions:
 
-- `addStock`
-- `consumeStock`
-- `adjustStock`
-- `updateBatch`
-- `deleteItem`
+- Batch changes and Transaction creation are committed together.
+- If Transaction creation fails, Batch changes roll back.
+- Reminder recompute and RestockItem updates caused by the same mutation are performed inside the same transaction.
+- `operationId` is checked inside the transaction so retries do not double-add, double-consume, or create duplicate Transactions.
 
-Cloud Repository uses `db.runTransaction`. If the current WeChat runtime does not support this API from the miniprogram side, the diagnostic page will fail with `TRANSACTION_UNAVAILABLE`. In that case Phase 0 / Phase 1 cloud acceptance remains pending until these writes are moved behind cloud functions that support transactions.
+FEFO consume flow:
+
+1. Outside transaction, query positive batches and sort by `effectiveExpiryDate`.
+2. Inside transaction, reread candidate Batch IDs.
+3. Revalidate item ownership, quantity, and effective expiry snapshot.
+4. If changed, fail with `STALE_STOCK_RETRY_REQUIRED` and retry from a fresh read.
+5. Deduct by FEFO and create one Transaction per affected Batch.
 
 ## Development Diagnostic
 
@@ -90,6 +122,8 @@ It verifies:
 
 - Cloud initialization.
 - Current OpenID via `getOpenId`.
-- `InventoryService.addStock` using Cloud Repository.
-- `InventoryService.getItemDetail` using Cloud Repository.
-- `InventoryService.consumeStock` using Cloud Repository.
+- `InventoryService.addStock` -> `inventoryWrite` -> server transaction.
+- `InventoryService.consumeStock` -> `inventoryWrite` -> server transaction.
+- `InventoryService.adjustStock` -> `inventoryWrite` -> server transaction.
+- Cloud Repository readback for Batch and Transaction state.
+- Safe cleanup of the dev-created `dev-cloud-item-*` record.

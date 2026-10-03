@@ -22,6 +22,7 @@ import { compareByEffectiveExpiryDate, getEffectiveExpiryDate, getRemainingDays 
 import { InventoryError } from '../utils/errors';
 import { createId, createOperationId } from '../utils/id';
 import { assertNonEmptyString, assertNonNegativeNumber, assertPositiveNumber } from '../utils/validation';
+import type { InventoryMutationClient } from './inventory-mutation-client';
 import { ReminderService } from './reminder-service';
 
 export interface InventoryServiceOptions {
@@ -29,6 +30,8 @@ export interface InventoryServiceOptions {
   now?: () => Date;
   defaultExpiryWarningDays?: number;
   disableTransactions?: boolean;
+  mutationClient?: InventoryMutationClient;
+  requireMutationClientForWrites?: boolean;
 }
 
 export class InventoryService {
@@ -64,14 +67,20 @@ export class InventoryService {
   }
 
   async addStock(input: AddStockInput): Promise<AddStockResult> {
+    if (this.options.mutationClient) return this.options.mutationClient.addStock(input);
+    this.assertLocalMutationAllowed();
     return this.withWriteBoundary((service) => service.addStockCore(input));
   }
 
   async consumeStock(input: ConsumeStockInput): Promise<ConsumeStockResult> {
+    if (this.options.mutationClient) return this.options.mutationClient.consumeStock(input);
+    this.assertLocalMutationAllowed();
     return this.withWriteBoundary((service) => service.consumeStockCore(input));
   }
 
   async adjustStock(input: AdjustStockInput): Promise<AdjustStockResult> {
+    if (this.options.mutationClient) return this.options.mutationClient.adjustStock(input);
+    this.assertLocalMutationAllowed();
     return this.withWriteBoundary((service) => service.adjustStockCore(input));
   }
 
@@ -160,6 +169,12 @@ export class InventoryService {
       reminders,
       restockItem,
     };
+  }
+
+  private assertLocalMutationAllowed(): void {
+    if (this.options.requireMutationClientForWrites) {
+      throw new InventoryError('VALIDATION_ERROR', 'Cloud writes must use inventoryWrite cloud function');
+    }
   }
 
   private async addStockCore(input: AddStockInput): Promise<AddStockResult> {

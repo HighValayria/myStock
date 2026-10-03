@@ -40,6 +40,12 @@ Resolved interpretation: V0.1 supports cloud reload under the same WeChat identi
 
 ### Q6: CloudBase Transaction / Consistency Strategy
 
-Engineering implementation now uses `InventoryRepositories.runInTransaction` for high-risk writes. Cloud Repository maps this to `db.runTransaction`; Memory Repository keeps the same interface for tests.
+Resolved engineering conclusion: core inventory transactions are executed by server-side Cloud Function + CloudBase Node SDK. The mini program client must not depend on `wx.cloud.database().runTransaction`.
 
-Remaining verification is environmental, not a product rule question: run `pages/dev-cloud-check/index` in WeChat DevTools. If the runtime reports `TRANSACTION_UNAVAILABLE`, Phase 0 / Phase 1 cloud acceptance remains pending and high-risk writes must move behind transaction-capable cloud functions before Phase 2.
+Final Phase 0 / Phase 1 write path:
+
+```text
+Page -> Service -> wx.cloud.callFunction -> inventoryWrite -> server-side runTransaction -> Cloud Database
+```
+
+Memory Repository keeps the local mutation path for automated domain tests only. Cloud Repository remains available for ordinary scoped reads and simple repository operations.

@@ -211,13 +211,6 @@ function createCloudRepositoriesForDb(db: CloudDb): InventoryRepositories {
     settings: new CloudSettingsRepository(db),
   };
 
-  repos.runInTransaction = async (handler) => {
-    if (typeof db.runTransaction !== 'function') {
-      throw new InventoryError('TRANSACTION_UNAVAILABLE', 'CloudBase transaction API is unavailable in this runtime');
-    }
-    return db.runTransaction(async (transaction: CloudDb) => handler(createCloudRepositoriesForDb(transaction)));
-  };
-
   return repos;
 }
 

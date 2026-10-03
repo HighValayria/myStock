@@ -1629,7 +1629,7 @@ docs/
 Purpose: verify the real chain:
 
 ```text
-Mini Program -> Service -> Cloud Repository -> CloudBase -> Cloud Database
+Mini Program -> Service -> wx.cloud.callFunction -> inventoryWrite -> server-side transaction -> Cloud Database
 ```
 
 Path in WeChat DevTools:
@@ -1642,19 +1642,24 @@ Steps:
 
 1. Configure CloudBase environment in `miniprogram/config/env.ts` or keep it empty to use the currently selected DevTools environment.
 2. Deploy `cloudfunctions/getOpenId`.
-3. Create required collections listed in `docs/CLOUDBASE_SETUP.md`.
-4. Open the page `pages/dev-cloud-check/index` in WeChat DevTools.
-5. Click `Run Cloud Check`.
+3. Deploy `cloudfunctions/inventoryWrite`.
+4. Create required collections listed in `docs/CLOUDBASE_SETUP.md`.
+5. Open the page `pages/dev-cloud-check/index` in WeChat DevTools.
+6. Click `Run Cloud Check`.
 
 Expected:
 
 - Cloud initializes.
 - `getOpenId` returns the current user's openid.
-- The page creates a dev Item through `InventoryService.addStock`.
-- Data persists through Cloud Repository.
-- The page queries the created Item through `InventoryService.getItemDetail`.
-- The page calls `InventoryService.consumeStock`.
-- Batch quantity and Transaction count remain consistent.
+- The page creates a dev Item through `InventoryService.addStock`, routed to `inventoryWrite`.
+- Output displays the add `operationId`, Item ID, Batch ID, and ADD Transaction ID.
+- The page calls `InventoryService.consumeStock`, routed to `inventoryWrite`.
+- Output displays the consume `operationId`, changed Batch rows, and CONSUME Transaction IDs.
+- The page calls `InventoryService.adjustStock`, routed to `inventoryWrite`.
+- Output displays the adjust `operationId`, target Batch ID, final quantity, and ADJUST Transaction ID.
+- The page queries Batch and Transaction data through the Service / Cloud Repository read path.
+- Batch quantity and Transaction records remain consistent.
+- The cleanup step removes only this run's `dev-cloud-item-*` test data and reports success or a clear failure.
 
 ## DEV-CLOUD-002 User Isolation Manual Test
 
@@ -1680,10 +1685,14 @@ Expected:
 Steps:
 
 1. In WeChat DevTools, run `DEV-CLOUD-001`.
-2. Observe whether `addStock` and `consumeStock` complete without `TRANSACTION_UNAVAILABLE`.
+2. Observe whether `addStock`, `consumeStock`, and `adjustStock` complete through `inventoryWrite`.
 3. Inspect Cloud Database for matching Batch and Transaction records.
+4. Retry the same operation with the same `operationId` from a temporary console call or a controlled diagnostic edit.
 
 Expected:
 
-- If `db.runTransaction` is supported in the current runtime, writes commit atomically.
-- If it is not supported, the diagnostic fails clearly with `TRANSACTION_UNAVAILABLE`; do not treat Phase 0 / Phase 1 cloud acceptance as complete until cloud function transaction fallback is added.
+- The mini program client does not call `wx.cloud.database().runTransaction`.
+- `inventoryWrite` uses CloudBase Node SDK server-side transaction support.
+- Batch changes and Transaction creation commit together.
+- If Transaction creation fails, Batch changes roll back.
+- Retrying the same `operationId` returns the existing Transaction result and does not change stock twice.

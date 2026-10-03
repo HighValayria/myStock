@@ -1,6 +1,6 @@
 import { initCloud } from '../../config/cloud';
 import { createRepositories } from '../../repositories';
-import { InventoryService } from '../../services';
+import { CloudFunctionInventoryMutationClient, InventoryService } from '../../services';
 
 interface OpenIdResult {
   openid: string;
@@ -15,19 +15,37 @@ interface DevCloudCheckPage {
   setData(data: Partial<DevCloudCheckData>): void;
 }
 
+interface CloudFunctionResult<T> {
+  ok: boolean;
+  data?: T;
+  error?: { code?: string; message?: string };
+}
+
 function append(lines: string[], line: string): void {
   lines.push(line);
+}
+
+async function cleanupDevItem(itemId: string): Promise<string> {
+  const result = await wx.cloud!.callFunction<CloudFunctionResult<{ itemId: string; removed: Record<string, number> }>>({
+    name: 'inventoryWrite',
+    data: { action: 'cleanupDevItem', payload: { itemId } },
+  });
+  if (!result.result?.ok) {
+    return `cleanup failed: ${result.result?.error?.message ?? 'unknown error'}`;
+  }
+  return `cleanup ok: ${JSON.stringify(result.result.data?.removed)}`;
 }
 
 Page({
   data: {
     running: false,
-    output: 'Tap Run Cloud Check to verify CloudBase integration.',
+    output: 'Tap Run Cloud Check to verify Cloud Function transaction integration.',
   } as DevCloudCheckData,
 
   async runCloudCheck(this: DevCloudCheckPage) {
     const lines: string[] = [];
     this.setData({ running: true, output: 'Running...' });
+    let itemIdForCleanup: string | null = null;
     try {
       initCloud();
       append(lines, 'Cloud initialized');
@@ -38,8 +56,18 @@ Page({
       append(lines, `Current openid: ${openid}`);
 
       const repos = createRepositories('cloud');
-      const service = new InventoryService(repos, { userId: openid, defaultExpiryWarningDays: 7 });
+      const service = new InventoryService(repos, {
+        userId: openid,
+        defaultExpiryWarningDays: 7,
+        mutationClient: new CloudFunctionInventoryMutationClient(),
+        requireMutationClientForWrites: true,
+      });
       const suffix = Date.now().toString(36);
+      const addOperationId = `dev-add-${suffix}`;
+      const consumeOperationId = `dev-consume-${suffix}`;
+      const adjustOperationId = `dev-adjust-${suffix}`;
+
+      append(lines, `addStock operationId: ${addOperationId}`);
       const addResult = await service.addStock({
         item: {
           name: `dev-cloud-item-${suffix}`,
@@ -52,30 +80,46 @@ Page({
         locationId: 'dev_location',
         purchaseDate: '2026-10-03',
         expiryDate: '2026-10-20',
-        operationId: `dev-add-${suffix}`,
+        operationId: addOperationId,
       });
-      append(lines, `Created item: ${addResult.item._id}`);
-      append(lines, `Created batch: ${addResult.batch._id}, quantity=${addResult.batch.quantity}`);
-      append(lines, `ADD transaction: ${addResult.transaction._id}`);
+      itemIdForCleanup = addResult.item._id;
+      append(lines, `Item ID: ${addResult.item._id}`);
+      append(lines, `Batch after add: ${addResult.batch._id}, quantity=${addResult.batch.quantity}`);
+      append(lines, `ADD Transaction: ${addResult.transaction._id}`);
 
-      const detailBefore = await service.getItemDetail(addResult.item._id);
-      append(lines, `Queried total before consume: ${detailBefore.totalQuantity}`);
-
+      append(lines, `consumeStock operationId: ${consumeOperationId}`);
       const consumeResult = await service.consumeStock({
         itemId: addResult.item._id,
         quantity: 1,
-        operationId: `dev-consume-${suffix}`,
+        operationId: consumeOperationId,
       });
-      append(lines, `CONSUME transactions: ${consumeResult.transactions.length}`);
+      append(lines, `Batch after consume: ${consumeResult.affectedBatches.map((batch) => `${batch._id}:${batch.quantity}`).join(', ')}`);
+      append(lines, `CONSUME Transactions: ${consumeResult.transactions.map((tx) => tx._id).join(', ')}`);
 
-      const detailAfter = await service.getItemDetail(addResult.item._id);
-      append(lines, `Queried total after consume: ${detailAfter.totalQuantity}`);
-      append(lines, 'Cloud Service -> Repository -> CloudBase check passed');
+      const detailAfterConsume = await service.getItemDetail(addResult.item._id);
+      const targetBatch = detailAfterConsume.batches[0];
+      append(lines, `Queried total after consume: ${detailAfterConsume.totalQuantity}`);
+
+      append(lines, `adjustStock operationId: ${adjustOperationId}`);
+      const adjustResult = await service.adjustStock({
+        batchId: targetBatch._id,
+        actualQuantity: 1,
+        operationId: adjustOperationId,
+      });
+      append(lines, `Batch after adjust: ${adjustResult.batch._id}, quantity=${adjustResult.batch.quantity}, diff=${adjustResult.diff}`);
+      append(lines, `ADJUST Transaction: ${adjustResult.transaction?._id ?? 'none'}`);
+
+      const finalDetail = await service.getItemDetail(addResult.item._id);
+      append(lines, `Final total: ${finalDetail.totalQuantity}`);
+      append(lines, `Recent transactions: ${finalDetail.recentTransactions.map((tx) => `${tx.type}:${tx.quantity}:${tx.operationId}`).join(' | ')}`);
+      append(lines, 'Cloud Service -> Cloud Function -> server transaction -> Cloud Database check passed');
+
+      append(lines, await cleanupDevItem(addResult.item._id));
       this.setData({ running: false, output: lines.join('\n') });
     } catch (error) {
       append(lines, `FAILED: ${error instanceof Error ? error.message : String(error)}`);
+      if (itemIdForCleanup) append(lines, await cleanupDevItem(itemIdForCleanup));
       this.setData({ running: false, output: lines.join('\n') });
     }
   },
 });
-
