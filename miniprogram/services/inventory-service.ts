@@ -28,6 +28,7 @@ export interface InventoryServiceOptions {
   userId: string;
   now?: () => Date;
   defaultExpiryWarningDays?: number;
+  disableTransactions?: boolean;
 }
 
 export class InventoryService {
@@ -63,135 +64,15 @@ export class InventoryService {
   }
 
   async addStock(input: AddStockInput): Promise<AddStockResult> {
-    assertPositiveNumber(input.quantity, 'quantity');
-    assertNonEmptyString(input.locationId, 'locationId');
-    assertNonEmptyString(input.expiryDate, 'expiryDate');
-
-    const item = input.itemId
-      ? await this.requireItem(input.itemId)
-      : await this.createItem(this.requireNewItem(input));
-
-    const existingBatch = await this.repos.batches.findMergeCandidate(
-      this.options.userId,
-      item._id,
-      input.locationId,
-      input.purchaseDate ?? null,
-      input.expiryDate,
-    );
-
-    const now = this.now().getTime();
-    let batch: Batch;
-    let merged = false;
-    if (existingBatch) {
-      merged = true;
-      batch = await this.repos.batches.update(this.options.userId, existingBatch._id, {
-        quantity: existingBatch.quantity + input.quantity,
-        updatedAt: now,
-      });
-    } else {
-      batch = await this.repos.batches.create({
-        _id: createId('batch'),
-        _openid: this.options.userId,
-        schemaVersion: SCHEMA_VERSION,
-        itemId: item._id,
-        quantity: input.quantity,
-        locationId: input.locationId,
-        purchaseDate: input.purchaseDate ?? null,
-        productionDate: input.productionDate ?? null,
-        shelfLifeValue: input.shelfLifeValue ?? null,
-        shelfLifeUnit: input.shelfLifeUnit ?? null,
-        expiryDate: input.expiryDate,
-        purchasePrice: input.purchasePrice ?? null,
-        purchaseChannel: input.purchaseChannel ?? null,
-        openedDate: null,
-        openedExpiryDate: null,
-        note: input.note ?? '',
-        createdAt: now,
-        updatedAt: now,
-      });
-    }
-
-    const transaction = await this.createTransaction({
-      itemId: item._id,
-      batchId: batch._id,
-      type: 'ADD',
-      quantity: input.quantity,
-      reason: 'PURCHASE',
-      note: input.note,
-      operationId: input.operationId ?? createOperationId('add'),
-    });
-
-    await this.resolveRestockIfNeeded(item._id);
-    await this.reminderService.recomputeReminders({ itemId: item._id });
-    return { item, batch, transaction, merged };
+    return this.withWriteBoundary((service) => service.addStockCore(input));
   }
 
   async consumeStock(input: ConsumeStockInput): Promise<ConsumeStockResult> {
-    assertNonEmptyString(input.itemId, 'itemId');
-    assertPositiveNumber(input.quantity, 'quantity');
-
-    const item = await this.requireItem(input.itemId);
-    const batches = (await this.repos.batches.listPositiveByItem(this.options.userId, item._id)).sort(compareByEffectiveExpiryDate);
-    const total = batches.reduce((sum, batch) => sum + batch.quantity, 0);
-    if (total < input.quantity) {
-      throw new InventoryError('INSUFFICIENT_STOCK', 'Consume quantity exceeds available stock');
-    }
-
-    let remaining = input.quantity;
-    const transactions: Transaction[] = [];
-    const affectedBatches: Batch[] = [];
-
-    for (const batch of batches) {
-      if (remaining <= 0) break;
-      const deduct = Math.min(batch.quantity, remaining);
-      const now = this.now().getTime();
-      const updatedBatch = await this.repos.batches.update(this.options.userId, batch._id, {
-        quantity: batch.quantity - deduct,
-        updatedAt: now,
-      });
-      affectedBatches.push(updatedBatch);
-      transactions.push(await this.createTransaction({
-        itemId: item._id,
-        batchId: batch._id,
-        type: 'CONSUME',
-        quantity: -deduct,
-        reason: input.reason ?? 'USED',
-        note: input.note,
-        operationId: input.operationId ?? createOperationId('consume'),
-      }));
-      remaining -= deduct;
-    }
-
-    await this.reminderService.recomputeReminders({ itemId: item._id });
-    return { item, transactions, affectedBatches };
+    return this.withWriteBoundary((service) => service.consumeStockCore(input));
   }
 
   async adjustStock(input: AdjustStockInput): Promise<AdjustStockResult> {
-    assertNonEmptyString(input.batchId, 'batchId');
-    assertNonNegativeNumber(input.actualQuantity, 'actualQuantity');
-
-    const batch = await this.requireBatch(input.batchId);
-    const diff = input.actualQuantity - batch.quantity;
-    if (diff === 0) {
-      return { batch, transaction: null, diff };
-    }
-
-    const now = this.now().getTime();
-    const updatedBatch = await this.repos.batches.update(this.options.userId, batch._id, {
-      quantity: input.actualQuantity,
-      updatedAt: now,
-    });
-    const transaction = await this.createTransaction({
-      itemId: batch.itemId,
-      batchId: batch._id,
-      type: 'ADJUST',
-      quantity: diff,
-      reason: input.reason ?? 'MANUAL_CORRECTION',
-      note: input.note,
-      operationId: input.operationId ?? createOperationId('adjust'),
-    });
-    await this.reminderService.recomputeReminders({ itemId: batch.itemId });
-    return { batch: updatedBatch, transaction, diff };
+    return this.withWriteBoundary((service) => service.adjustStockCore(input));
   }
 
   async updateItem(itemId: string, patch: UpdateItemInput): Promise<Item> {
@@ -200,20 +81,24 @@ export class InventoryService {
   }
 
   async updateBatch(batchId: string, patch: UpdateBatchInput): Promise<Batch> {
-    const batch = await this.requireBatch(batchId);
-    const updated = await this.repos.batches.update(this.options.userId, batchId, { ...patch, updatedAt: this.now().getTime() });
-    await this.reminderService.recomputeReminders({ itemId: batch.itemId });
-    return updated;
+    return this.withWriteBoundary(async (service) => {
+      const batch = await service.requireBatch(batchId);
+      const updated = await service.repos.batches.update(service.options.userId, batchId, { ...patch, updatedAt: service.now().getTime() });
+      await service.reminderService.recomputeReminders({ itemId: batch.itemId });
+      return updated;
+    });
   }
 
   async deleteItem(itemId: string, options: DeleteItemOptions): Promise<void> {
-    await this.requireItem(itemId);
-    if (!options.confirmEmptyItem) throw new InventoryError('DELETE_NOT_ALLOWED', 'Deleting an item requires confirmation');
-    const batches = await this.repos.batches.listByItem(this.options.userId, itemId);
-    if (batches.some((batch) => batch.quantity > 0)) {
-      throw new InventoryError('DELETE_NOT_ALLOWED', 'Item still has stock; adjust or discard stock first');
-    }
-    await this.repos.items.delete(this.options.userId, itemId);
+    return this.withWriteBoundary(async (service) => {
+      await service.requireItem(itemId);
+      if (!options.confirmEmptyItem) throw new InventoryError('DELETE_NOT_ALLOWED', 'Deleting an item requires confirmation');
+      const batches = await service.repos.batches.listByItem(service.options.userId, itemId);
+      if (batches.some((batch) => batch.quantity > 0)) {
+        throw new InventoryError('DELETE_NOT_ALLOWED', 'Item still has stock; adjust or discard stock first');
+      }
+      await service.repos.items.delete(service.options.userId, itemId);
+    });
   }
 
   async getInventory(query: InventoryQuery = {}): Promise<InventoryListItem[]> {
@@ -275,6 +160,162 @@ export class InventoryService {
       reminders,
       restockItem,
     };
+  }
+
+  private async addStockCore(input: AddStockInput): Promise<AddStockResult> {
+    assertPositiveNumber(input.quantity, 'quantity');
+    assertNonEmptyString(input.locationId, 'locationId');
+    assertNonEmptyString(input.expiryDate, 'expiryDate');
+    const operationId = input.operationId ?? createOperationId('add');
+    await this.assertOperationIsNew(operationId);
+
+    const item = input.itemId
+      ? await this.requireItem(input.itemId)
+      : await this.createItem(this.requireNewItem(input));
+
+    const existingBatch = await this.repos.batches.findMergeCandidate(
+      this.options.userId,
+      item._id,
+      input.locationId,
+      input.purchaseDate ?? null,
+      input.expiryDate,
+    );
+
+    const now = this.now().getTime();
+    let batch: Batch;
+    let merged = false;
+    if (existingBatch) {
+      merged = true;
+      batch = await this.repos.batches.update(this.options.userId, existingBatch._id, {
+        quantity: existingBatch.quantity + input.quantity,
+        updatedAt: now,
+      });
+    } else {
+      batch = await this.repos.batches.create({
+        _id: createId('batch'),
+        _openid: this.options.userId,
+        schemaVersion: SCHEMA_VERSION,
+        itemId: item._id,
+        quantity: input.quantity,
+        locationId: input.locationId,
+        purchaseDate: input.purchaseDate ?? null,
+        productionDate: input.productionDate ?? null,
+        shelfLifeValue: input.shelfLifeValue ?? null,
+        shelfLifeUnit: input.shelfLifeUnit ?? null,
+        expiryDate: input.expiryDate,
+        purchasePrice: input.purchasePrice ?? null,
+        purchaseChannel: input.purchaseChannel ?? null,
+        openedDate: null,
+        openedExpiryDate: null,
+        note: input.note ?? '',
+        createdAt: now,
+        updatedAt: now,
+      });
+    }
+
+    const transaction = await this.createTransaction({
+      itemId: item._id,
+      batchId: batch._id,
+      type: 'ADD',
+      quantity: input.quantity,
+      reason: 'PURCHASE',
+      note: input.note,
+      operationId,
+    });
+
+    await this.resolveRestockIfNeeded(item._id);
+    await this.reminderService.recomputeReminders({ itemId: item._id });
+    return { item, batch, transaction, merged };
+  }
+
+  private async consumeStockCore(input: ConsumeStockInput): Promise<ConsumeStockResult> {
+    assertNonEmptyString(input.itemId, 'itemId');
+    assertPositiveNumber(input.quantity, 'quantity');
+    const operationId = input.operationId ?? createOperationId('consume');
+    await this.assertOperationIsNew(operationId);
+
+    const item = await this.requireItem(input.itemId);
+    const batches = (await this.repos.batches.listPositiveByItem(this.options.userId, item._id)).sort(compareByEffectiveExpiryDate);
+    const total = batches.reduce((sum, batch) => sum + batch.quantity, 0);
+    if (total < input.quantity) {
+      throw new InventoryError('INSUFFICIENT_STOCK', 'Consume quantity exceeds available stock');
+    }
+
+    let remaining = input.quantity;
+    const transactions: Transaction[] = [];
+    const affectedBatches: Batch[] = [];
+
+    for (const batch of batches) {
+      if (remaining <= 0) break;
+      const deduct = Math.min(batch.quantity, remaining);
+      const now = this.now().getTime();
+      const updatedBatch = await this.repos.batches.update(this.options.userId, batch._id, {
+        quantity: batch.quantity - deduct,
+        updatedAt: now,
+      });
+      affectedBatches.push(updatedBatch);
+      transactions.push(await this.createTransaction({
+        itemId: item._id,
+        batchId: batch._id,
+        type: 'CONSUME',
+        quantity: -deduct,
+        reason: input.reason ?? 'USED',
+        note: input.note,
+        operationId,
+      }));
+      remaining -= deduct;
+    }
+
+    await this.reminderService.recomputeReminders({ itemId: item._id });
+    return { item, transactions, affectedBatches };
+  }
+
+  private async adjustStockCore(input: AdjustStockInput): Promise<AdjustStockResult> {
+    assertNonEmptyString(input.batchId, 'batchId');
+    assertNonNegativeNumber(input.actualQuantity, 'actualQuantity');
+    const operationId = input.operationId ?? createOperationId('adjust');
+
+    const batch = await this.requireBatch(input.batchId);
+    const diff = input.actualQuantity - batch.quantity;
+    if (diff === 0) {
+      return { batch, transaction: null, diff };
+    }
+    await this.assertOperationIsNew(operationId);
+
+    const now = this.now().getTime();
+    const updatedBatch = await this.repos.batches.update(this.options.userId, batch._id, {
+      quantity: input.actualQuantity,
+      updatedAt: now,
+    });
+    const transaction = await this.createTransaction({
+      itemId: batch.itemId,
+      batchId: batch._id,
+      type: 'ADJUST',
+      quantity: diff,
+      reason: input.reason ?? 'MANUAL_CORRECTION',
+      note: input.note,
+      operationId,
+    });
+    await this.reminderService.recomputeReminders({ itemId: batch.itemId });
+    return { batch: updatedBatch, transaction, diff };
+  }
+
+  private async withWriteBoundary<T>(handler: (service: InventoryService) => Promise<T>): Promise<T> {
+    if (this.options.disableTransactions || !this.repos.runInTransaction) {
+      return handler(this);
+    }
+    return this.repos.runInTransaction(async (repos) => {
+      const txReminderService = new ReminderService(repos, this.options);
+      const txService = new InventoryService(repos, { ...this.options, disableTransactions: true }, txReminderService);
+      return handler(txService);
+    });
+  }
+
+  private async assertOperationIsNew(operationId: string): Promise<void> {
+    const existing = await this.repos.transactions.findByOperationId(this.options.userId, operationId);
+    if (existing) {
+      throw new InventoryError('DUPLICATE_OPERATION', `Operation has already been applied: ${operationId}`);
+    }
   }
 
   private async createTransaction(input: Omit<Transaction, '_id' | '_openid' | 'schemaVersion' | 'createdAt'>): Promise<Transaction> {

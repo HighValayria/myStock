@@ -1,7 +1,8 @@
 {
   "pages": [
     "pages/index/index",
-    "pages/logs/logs"
+    "pages/logs/logs",
+    "pages/dev-cloud-check/index"
   ],
   "window": {
     "navigationBarTextStyle": "black",
@@ -13,3 +14,4 @@
   "sitemapLocation": "sitemap.json",
   "lazyCodeLoading": "requiredComponents"
 }
+

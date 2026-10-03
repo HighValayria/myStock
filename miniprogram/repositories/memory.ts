@@ -113,6 +113,10 @@ export class MemoryTransactionRepository implements TransactionRepository {
   getById(userId: string, id: string): Promise<Transaction | null> { return this.collection.getById(userId, id); }
   listByUser(userId: string): Promise<Transaction[]> { return this.collection.listByUser(userId); }
 
+  async findByOperationId(userId: string, operationId: string): Promise<Transaction | null> {
+    return (await this.listByUser(userId)).find((tx) => tx.operationId === operationId) ?? null;
+  }
+
   async listByItem(userId: string, itemId: string, limit = 20): Promise<Transaction[]> {
     return (await this.listByUser(userId))
       .filter((tx) => tx.itemId === itemId)
@@ -179,7 +183,7 @@ export class MemorySettingsRepository implements SettingsRepository {
 }
 
 export function createMemoryRepositories(): InventoryRepositories {
-  return {
+  const repos: InventoryRepositories = {
     categories: new MemoryCategoryRepository(),
     items: new MemoryItemRepository(),
     batches: new MemoryBatchRepository(),
@@ -189,5 +193,8 @@ export function createMemoryRepositories(): InventoryRepositories {
     restockItems: new MemoryRestockRepository(),
     settings: new MemorySettingsRepository(),
   };
+  repos.runInTransaction = async (handler) => handler(repos);
+  return repos;
 }
+
 

@@ -6,7 +6,7 @@ This plan is split by independently runnable user capability, not by frontend/ba
 
 ## Phase 0: Engineering Initialization and CloudBase Infrastructure
 
-Status: Complete for the current Phase 0 baseline. TypeScript config, CloudBase init skeleton, dbInit cloud function skeleton, test scripts, and project ignore rules are in place.
+Status: Code-complete for Phase 0 plus CloudBase integration scaffolding. Final CloudBase acceptance is pending WeChat DevTools manual verification of environment initialization, getOpenId, collections, and transaction runtime support.
 
 Goal:
 
@@ -58,7 +58,7 @@ Not handled yet:
 
 ## Phase 1: Data Layer and Core Inventory Domain
 
-Status: Complete for the current Phase 1 baseline. Core models, repositories, InventoryService, ReminderService, addStock, consumeStock with FEFO, adjustStock, status calculations, reminder recompute, validation, and repeatable domain tests are in place. Phase 2 UI flow is not started.
+Status: Code-complete for Phase 1 plus Cloud Repository integration. Automated domain tests pass, but final CloudBase acceptance is pending manual verification of Cloud Repository CRUD, addStock, consumeStock, Batch/Transaction consistency, idempotency, and user isolation.
 
 Goal:
 
@@ -426,5 +426,6 @@ Acceptance:
 Not handled yet:
 
 - V0.2 feature planning.
+
 
 

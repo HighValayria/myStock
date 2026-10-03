@@ -2,40 +2,44 @@
 
 Source of truth: `docs/INVENTORY_APP_V0.1_DESIGN_FREEZE.md`.
 
-These questions are implementation boundaries or product details that should be clarified before or during the relevant Phase. They do not override the Design Freeze.
+Questions are grouped by when they must be resolved. These notes do not override the Design Freeze.
 
-## Q1: Units Management Data Shape
+## A. Must Resolve Before Phase 2
 
-The Settings page includes Unit Management, and Item has a free-form `unit` field. The Design Freeze does not define a `units` collection. Proposed implementation for V0.1: keep `unit` as a string on Item and manage a user-level list only if explicitly approved.
+### Q1: Units Management Data Shape
 
-Affected phases: Phase 0, Phase 2, Settings.
+The Settings page includes Unit Management, and Item has a free-form `unit` field. The Design Freeze does not define a `units` collection.
 
-## Q2: Undo / Correction Basic Capability
+Current engineering stance: Phase 1 keeps `Item.unit` as a string. Before Phase 2 UI work starts, decide whether add/edit forms use a free-text unit field or a managed unit list.
 
-V0.1 includes “撤销 / 修正基本能力”, while delete rules prefer undo / reverse transaction for correcting mistakes. The exact undo scope is not defined: last operation only, transaction-level reversal, or guided quantity correction. Proposed implementation for V0.1: prioritize ADJUST-based correction and record reverse transactions only after scope is confirmed.
+### Q2: Undo / Correction Basic Capability
 
-Affected phases: Phase 2, Phase 7.
+V0.1 includes “撤销 / 修正基本能力”, while delete rules prefer undo / reverse transaction for correcting mistakes. The exact undo scope is not defined: last operation only, transaction-level reversal, or guided quantity correction.
 
-## Q3: Zero-Stock “Do Not Ask This Cycle” Persistence
+Current engineering stance: Phase 1 supports ADJUST correction and preserves Transaction history. Before Phase 2 interaction design, clarify whether UI exposes explicit undo or only inventory correction.
 
-The Design Freeze says if the user declines restock after zero stock, this cycle should not ask again. It does not define whether this is represented by a dismissed ZERO_STOCK Reminder, a RestockItem with DISMISSED, or a separate flag. Proposed implementation: use ZERO_STOCK Reminder status DISMISSED for the cycle and create RestockItem only when user chooses yes.
+## B. Can Defer To Later Phase
 
-Affected phase: Phase 4.
+### Q3: Zero-Stock “Do Not Ask This Cycle” Persistence
 
-## Q4: Standard Excel Template
+The Design Freeze says if the user declines restock after zero stock, this cycle should not ask again. It does not define whether this is represented by a dismissed ZERO_STOCK Reminder, a RestockItem with DISMISSED, or a separate flag.
 
-V0.1 requires standard Excel import and Excel export, but the exact column template is not frozen. This should be specified before Phase 6 to avoid accidental arbitrary field mapping.
+Can defer to Phase 4. Current proposed implementation remains: use ZERO_STOCK Reminder status DISMISSED for the cycle and create RestockItem only when user chooses yes.
 
-Affected phase: Phase 6.
+### Q4: Standard Excel Template
 
-## Q5: “Multi-device Sync” Exclusion Wording
+V0.1 requires standard Excel import and Excel export, but the exact column template is not frozen.
 
-The Design Freeze excludes “多设备同步” but requires same WeChat identity on another device to reload cloud database data. Interpreted as: V0.1 supports cloud reload under same identity, but not real-time sync, conflict resolution, family sharing, or independent account synchronization.
+Can defer to Phase 6. Do not implement arbitrary intelligent Excel mapping before this is defined.
 
-Affected phases: Phase 0, Phase 6, Phase 7.
+## C. Engineering-Resolved Or No Longer A Product Question
 
-## Q6: Cloud Database Transaction Availability
+### Q5: “Multi-device Sync” Exclusion Wording
 
-The Design Freeze prefers transactions when the platform allows; otherwise idempotency, compensation, or rollback is required. The final approach depends on the CloudBase environment and SDK capabilities selected during implementation.
+Resolved interpretation: V0.1 supports cloud reload under the same WeChat identity, but not real-time sync, conflict resolution, family sharing, or independent account synchronization.
 
-Affected phases: Phase 0, Phase 2, Phase 4, Phase 6.
+### Q6: CloudBase Transaction / Consistency Strategy
+
+Engineering implementation now uses `InventoryRepositories.runInTransaction` for high-risk writes. Cloud Repository maps this to `db.runTransaction`; Memory Repository keeps the same interface for tests.
+
+Remaining verification is environmental, not a product rule question: run `pages/dev-cloud-check/index` in WeChat DevTools. If the runtime reports `TRANSACTION_UNAVAILABLE`, Phase 0 / Phase 1 cloud acceptance remains pending and high-risk writes must move behind transaction-capable cloud functions before Phase 2.

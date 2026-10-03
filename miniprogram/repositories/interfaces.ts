@@ -39,6 +39,7 @@ export interface BatchRepository {
 export interface TransactionRepository {
   create(doc: Transaction): Promise<Transaction>;
   getById(userId: string, id: string): Promise<Transaction | null>;
+  findByOperationId(userId: string, operationId: string): Promise<Transaction | null>;
   listByUser(userId: string): Promise<Transaction[]>;
   listByItem(userId: string, itemId: string, limit?: number): Promise<Transaction[]>;
 }
@@ -81,6 +82,7 @@ export interface InventoryRepositories {
   reminders: ReminderRepository;
   restockItems: RestockRepository;
   settings: SettingsRepository;
+  runInTransaction?<T>(handler: (repos: InventoryRepositories) => Promise<T>): Promise<T>;
 }
 
 export const OPEN_REMINDER_STATUSES: ReminderStatus[] = ['ACTIVE', 'READ', 'DISMISSED'];

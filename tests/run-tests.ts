@@ -188,6 +188,23 @@ const tests: Array<[string, () => Promise<void>]> = [
     const expiring = (await repos.reminders.listByItem(USER_ID, added.item._id)).filter((reminder) => reminder.type === 'EXPIRING');
     assert(expiring.some((reminder) => reminder.status === 'RESOLVED'), 'expiring resolved');
   }],
+  ['duplicate operationId is rejected before double write', async () => {
+    const { repos, inventory } = createContext();
+    const operationId = 'op-add-duplicate';
+    await inventory.addStock(stockInput({ quantity: 2, operationId }));
+    await assertRejects(() => inventory.addStock(stockInput({ quantity: 2, operationId })), 'DUPLICATE_OPERATION', 'duplicate add operation');
+    assertEqual((await repos.batches.listByUser(USER_ID)).length, 1, 'duplicate add did not create extra batch');
+    assertEqual((await repos.transactions.listByUser(USER_ID)).length, 1, 'duplicate add did not create extra transaction');
+  }],
+
+  ['repository user isolation prevents known id read and update', async () => {
+    const { repos, inventory } = createContext();
+    const added = await inventory.addStock(stockInput({ quantity: 2 }));
+    const otherUser = 'other-user';
+    const readByOther = await repos.items.getById(otherUser, added.item._id);
+    assertEqual(readByOther, null, 'other user cannot read known item id');
+    await assertRejects(() => repos.items.update(otherUser, added.item._id, { note: 'hacked' }), 'NOT_FOUND', 'other user cannot update known item id');
+  }],
 ];
 
 async function main(): Promise<void> {
@@ -202,6 +219,7 @@ void main().catch((error) => {
   console.error(error);
   throw error;
 });
+
 
 
 

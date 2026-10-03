@@ -3,7 +3,9 @@ export type InventoryErrorCode =
   | 'NOT_FOUND'
   | 'INSUFFICIENT_STOCK'
   | 'INVALID_QUANTITY_CHANGE'
-  | 'DELETE_NOT_ALLOWED';
+  | 'DELETE_NOT_ALLOWED'
+  | 'DUPLICATE_OPERATION'
+  | 'TRANSACTION_UNAVAILABLE';
 
 export class InventoryError extends Error {
   constructor(public readonly code: InventoryErrorCode, message: string) {
@@ -15,3 +17,4 @@ export class InventoryError extends Error {
 export function isInventoryError(error: unknown): error is InventoryError {
   return error instanceof InventoryError;
 }
+
