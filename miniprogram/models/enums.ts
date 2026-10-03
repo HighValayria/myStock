@@ -1,0 +1,10 @@
+export type ShelfLifeUnit = 'DAY' | 'MONTH' | 'YEAR';
+export type TransactionType = 'ADD' | 'CONSUME' | 'ADJUST' | 'DISCARD' | 'DELETE';
+export type TransactionReason = 'PURCHASE' | 'USED' | 'EXPIRED' | 'DAMAGED' | 'GIFT' | 'MANUAL_CORRECTION' | 'OTHER';
+export type ReminderType = 'EXPIRING' | 'EXPIRED' | 'LOW_STOCK' | 'ZERO_STOCK';
+export type ReminderStatus = 'ACTIVE' | 'READ' | 'DISMISSED' | 'RESOLVED';
+export type RestockStatus = 'NEEDED' | 'PURCHASED' | 'DISMISSED';
+export type ExpiryStatus = 'NORMAL' | 'EXPIRING' | 'EXPIRED';
+export type StockStatus = 'NORMAL' | 'LOW' | 'ZERO';
+export type ConsumeStrategy = 'FEFO';
+export type ThemeMode = 'system' | 'light' | 'dark';
