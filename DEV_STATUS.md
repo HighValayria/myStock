@@ -2,7 +2,9 @@
 
 ## Current Phase
 
-Phase 0 / Phase 1 CloudBase integration accepted for continuation to Phase 2, with two-account isolation deferred until a second authorized WeChat developer account is available.
+Phase 2 implementation is code-complete for the Add / Consume / Edit user loop. Automated verification passes. WeChat DevTools manual UI acceptance is pending for TC-P2-001 through TC-P2-008 before starting Phase 3.
+
+Phase 0 / Phase 1 CloudBase integration remains accepted for continuation, with two-account isolation deferred until a second authorized WeChat developer account is available.
 
 ## Completed In Code
 
@@ -17,7 +19,12 @@ Phase 0 / Phase 1 CloudBase integration accepted for continuation to Phase 2, wi
 - `inventoryWrite` uses CloudBase Node SDK server-side `runTransaction` for Batch, Transaction, Reminder, and RestockItem consistency.
 - `operationId` duplicate detection prevents repeated submit double-writes.
 - Development-only CloudBase diagnostic page at `pages/dev-cloud-check/index`.
-- Manual CloudBase setup and test documentation.
+- Phase 2 temporary home with three real entries: Add, Consume, Edit.
+- Add stock page for new Item and existing Item flows.
+- Consume stock page using service-backed FEFO consume.
+- Edit stock page for Item properties, Batch properties, and explicit ADJUST quantity correction.
+- Phase 2 UI service that routes pages through InventoryService instead of direct database writes.
+- Phase 2 form validation and user-facing error mapping.
 
 ## Automated Verification
 
@@ -30,12 +37,14 @@ npm test
 Latest result:
 
 ```text
-16 tests passed
+17 tests passed
 ```
+
+Coverage includes Phase 1 regression plus Phase 2 form validation boundaries.
 
 ## Manual Verification
 
-Verified in WeChat DevTools against real CloudBase:
+Verified previously in WeChat DevTools against real CloudBase:
 
 - CloudBase initialization.
 - `getOpenId` deployment and invocation.
@@ -49,18 +58,22 @@ Verified in WeChat DevTools against real CloudBase:
 - Same-batch merge and different-expiry no-merge rules.
 - Dev data cleanup.
 
+Pending Phase 2 manual UI acceptance in WeChat DevTools:
+
+- TC-P2-001 through TC-P2-008.
+
 Deferred manual verification:
 
-- Two-account user isolation. Reason: no second authorized WeChat developer account is currently available. Repository-level isolation remains covered by automated tests; platform-authenticated `_openid` isolation must be confirmed later with two accounts.
+- TC-P2-009 Undo: blocked because undo scope is not frozen.
+- Two-account user isolation: no second authorized WeChat developer account is currently available.
 
 See:
 
 - `docs/CLOUDBASE_SETUP.md`
 - `docs/MANUAL_TEST_CASES.md`
 - `docs/TEST_REPORTS/phase_0_1_cloudbase.md`
+- `docs/TEST_REPORTS/phase_2.md`
 
-## Phase 2 Status
+## Phase 3 Readiness
 
-Not started.
-
-Phase 2 may start after this checkpoint. Two-account isolation remains a tracked deferred manual test and should be completed before release or before any sharing-related scope is considered.
+Do not start Phase 3 until TC-P2-001 through TC-P2-008 pass in WeChat DevTools. TC-P2-009 remains blocked by product definition and does not count as a code failure.

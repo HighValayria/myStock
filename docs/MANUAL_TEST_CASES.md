@@ -589,6 +589,8 @@ B -1
 
 ## TC-P2-009 撤销最近操作
 
+TC-P2-009 status: BLOCKED. The Design Freeze mentions undo / correction basic capability, but the exact undo scope is not yet frozen. Phase 2 implements correction through ADJUST only; do not invent undo behavior until this product rule is resolved.
+
 步骤：
 
 1. 执行一次增加或消耗；

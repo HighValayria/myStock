@@ -1,0 +1,63 @@
+<scroll-view class="page" scroll-y>
+  <view class="title">编辑库存</view>
+  <input class="input" placeholder="搜索物品" value="{{search}}" bindinput="onSearchInput" />
+  <view wx:if="{{loading}}" class="hint">加载中...</view>
+  <view wx:for="{{items}}" wx:key="id" class="item-row {{selectedItemId === item.id ? 'selected' : ''}}" data-id="{{item.id}}" bindtap="selectItem">
+    <view class="item-name">{{item.name}}</view>
+    <view class="item-summary">{{item.summary}}</view>
+  </view>
+  <view wx:if="{{!items.length && !loading}}" class="empty">没有找到物品</view>
+
+  <view wx:if="{{detail}}" class="panel">
+    <view class="section-title">物品属性</view>
+    <input class="input" placeholder="名称" data-field="name" value="{{itemForm.name}}" bindinput="onItemFieldInput" />
+    <input class="input" placeholder="分类" data-field="categoryId" value="{{itemForm.categoryId}}" bindinput="onItemFieldInput" />
+    <input class="input" placeholder="品牌" data-field="brand" value="{{itemForm.brand}}" bindinput="onItemFieldInput" />
+    <input class="input" placeholder="规格" data-field="specification" value="{{itemForm.specification}}" bindinput="onItemFieldInput" />
+    <input class="input" placeholder="单位" data-field="unit" value="{{itemForm.unit}}" bindinput="onItemFieldInput" />
+    <input class="input" placeholder="默认位置" data-field="defaultLocationId" value="{{itemForm.defaultLocationId}}" bindinput="onItemFieldInput" />
+    <input class="input" type="digit" placeholder="低库存阈值" data-field="lowStockThreshold" value="{{itemForm.lowStockThreshold}}" bindinput="onItemFieldInput" />
+    <input class="input" type="number" placeholder="临期阈值天数" data-field="expiryWarningDays" value="{{itemForm.expiryWarningDays}}" bindinput="onItemFieldInput" />
+    <textarea class="textarea" placeholder="备注" data-field="note" value="{{itemForm.note}}" bindinput="onItemFieldInput" />
+    <button type="primary" loading="{{submitting}}" disabled="{{submitting}}" bindtap="saveItem">保存物品属性</button>
+  </view>
+
+  <view wx:if="{{detail}}" class="panel">
+    <view class="section-title">批次</view>
+    <view wx:for="{{detail.batches}}" wx:key="_id" class="batch-row">
+      <view class="item-name">{{item.quantity}}{{detail.item.unit}} · {{item.locationId}}</view>
+      <view class="item-summary">到期 {{item.expiryDate}} · {{item.expiryStatus}} · 剩余 {{item.remainingDays}} 天</view>
+      <view class="row-actions">
+        <button size="mini" data-id="{{item._id}}" bindtap="editBatch">编辑批次</button>
+        <button size="mini" data-id="{{item._id}}" bindtap="adjustBatch">库存修正</button>
+      </view>
+    </view>
+  </view>
+
+  <view wx:if="{{batchForm}}" class="panel emphasized">
+    <view class="section-title">编辑批次属性</view>
+    <input class="input" placeholder="存放位置" data-field="locationId" value="{{batchForm.locationId}}" bindinput="onBatchFieldInput" />
+    <input class="input" placeholder="购买日期 YYYY-MM-DD" data-field="purchaseDate" value="{{batchForm.purchaseDate}}" bindinput="onBatchFieldInput" />
+    <input class="input" placeholder="生产日期 YYYY-MM-DD" data-field="productionDate" value="{{batchForm.productionDate}}" bindinput="onBatchFieldInput" />
+    <view class="row">
+      <input class="input flex" type="number" placeholder="保质期数值" data-field="shelfLifeValue" value="{{batchForm.shelfLifeValue}}" bindinput="onBatchFieldInput" />
+      <picker mode="selector" range="{{shelfLifeUnits}}" bindchange="onBatchShelfLifeUnitChange">
+        <view class="picker">{{batchForm.shelfLifeUnit}}</view>
+      </picker>
+    </view>
+    <input class="input" placeholder="到期日期 YYYY-MM-DD" data-field="expiryDate" value="{{batchForm.expiryDate}}" bindinput="onBatchFieldInput" />
+    <input class="input" type="digit" placeholder="购买价格" data-field="purchasePrice" value="{{batchForm.purchasePrice}}" bindinput="onBatchFieldInput" />
+    <textarea class="textarea" placeholder="备注" data-field="note" value="{{batchForm.note}}" bindinput="onBatchFieldInput" />
+    <button type="primary" loading="{{submitting}}" disabled="{{submitting}}" bindtap="saveBatch">保存批次属性</button>
+  </view>
+
+  <view wx:if="{{adjustForm}}" class="panel emphasized">
+    <view class="section-title">库存修正 / 实际盘点</view>
+    <view class="context">系统记录：{{adjustForm.systemQuantity}}{{detail.item.unit}}</view>
+    <input class="input" type="digit" placeholder="实际数量" value="{{adjustForm.actualQuantity}}" bindinput="onAdjustInput" />
+    <button type="primary" loading="{{submitting}}" disabled="{{submitting}}" bindtap="submitAdjust">提交库存修正</button>
+  </view>
+
+  <view wx:if="{{result}}" class="success">{{result}}</view>
+  <view wx:if="{{error}}" class="error">{{error}}</view>
+</scroll-view>

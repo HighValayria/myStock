@@ -3,6 +3,7 @@ import { InventoryService, ReminderService } from '../miniprogram/services';
 import type { InventoryMutationClient } from '../miniprogram/services';
 import { InventoryError } from '../miniprogram/utils/errors';
 import { resetIdSequenceForTests } from '../miniprogram/utils/id';
+import { parseNonNegativeNumber, parsePositiveNumber, resolveExpiryDate } from '../miniprogram/utils/phase2-form';
 import type { AddStockInput, CreateItemInput } from '../miniprogram/models';
 
 interface TestContext {
@@ -253,6 +254,22 @@ const tests: Array<[string, () => Promise<void>]> = [
     assertEqual(readByOther, null, 'other user cannot read known item id');
     await assertRejects(() => repos.items.update(otherUser, added.item._id, { note: 'hacked' }), 'NOT_FOUND', 'other user cannot update known item id');
   }],
+  ['phase 2 form helpers validate expiry and adjustment inputs', async () => {
+    assertEqual(resolveExpiryDate({ expiryDate: '2026-10-20' }), '2026-10-20', 'direct expiry date');
+    assertEqual(
+      resolveExpiryDate({ productionDate: '2026-10-01', shelfLifeValue: 7, shelfLifeUnit: 'DAY' }),
+      '2026-10-08',
+      'production date plus shelf life',
+    );
+    await assertRejects(
+      async () => resolveExpiryDate({ expiryDate: '2026-09-30', productionDate: '2026-10-01' }),
+      'VALIDATION_ERROR',
+      'expiry date before production date',
+    );
+    await assertRejects(async () => parsePositiveNumber('0', '数量'), 'VALIDATION_ERROR', 'positive number rejects zero');
+    assertEqual(parseNonNegativeNumber('0', '实际数量'), 0, 'adjust actual quantity allows zero');
+    await assertRejects(async () => parseNonNegativeNumber('-1', '实际数量'), 'VALIDATION_ERROR', 'adjust actual quantity rejects negative');
+  }],
 ];
 
 async function main(): Promise<void> {
@@ -267,8 +284,4 @@ void main().catch((error) => {
   console.error(error);
   throw error;
 });
-
-
-
-
 

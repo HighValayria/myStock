@@ -1,0 +1,53 @@
+<scroll-view class="page" scroll-y>
+  <view class="title">增加库存</view>
+
+  <view wx:if="{{mode === 'choose'}}" class="panel">
+    <button type="primary" bindtap="chooseNew">新增物品</button>
+    <button class="secondary" bindtap="chooseExisting">已有物品</button>
+  </view>
+
+  <view wx:if="{{mode !== 'choose'}}">
+    <button class="link" bindtap="backToChoose">返回选择</button>
+  </view>
+
+  <view wx:if="{{mode === 'existing'}}" class="panel">
+    <input class="input" placeholder="搜索物品" value="{{search}}" bindinput="onSearchInput" />
+    <view class="hint">最近使用会排在前面</view>
+    <view wx:if="{{loading}}" class="hint">加载中...</view>
+    <view wx:for="{{items}}" wx:key="id" class="item-row {{selectedItemId === item.id ? 'selected' : ''}}" data-id="{{item.id}}" bindtap="selectItem">
+      <view class="item-name">{{item.name}}</view>
+      <view class="item-summary">{{item.summary}}</view>
+    </view>
+    <view wx:if="{{!items.length && !loading}}" class="empty">没有找到物品</view>
+  </view>
+
+  <view wx:if="{{mode === 'new' || selectedItemId}}" class="form">
+    <view wx:if="{{mode === 'existing'}}" class="selected-name">已选择：{{selectedItemName}}</view>
+
+    <input wx:if="{{mode === 'new'}}" class="input" placeholder="物品名称 *" data-field="name" value="{{form.name}}" bindinput="onFieldInput" />
+    <input wx:if="{{mode === 'new'}}" class="input" placeholder="分类，例如 食品" data-field="categoryId" value="{{form.categoryId}}" bindinput="onFieldInput" />
+    <input wx:if="{{mode === 'new'}}" class="input" placeholder="品牌（可选）" data-field="brand" value="{{form.brand}}" bindinput="onFieldInput" />
+    <input wx:if="{{mode === 'new'}}" class="input" placeholder="规格（可选）" data-field="specification" value="{{form.specification}}" bindinput="onFieldInput" />
+    <input class="input" placeholder="单位 *，例如 盒" data-field="unit" value="{{form.unit}}" bindinput="onFieldInput" disabled="{{mode === 'existing'}}" />
+    <input class="input" placeholder="存放位置，例如 冰箱" data-field="locationId" value="{{form.locationId}}" bindinput="onFieldInput" />
+    <input class="input" type="digit" placeholder="数量 *" data-field="quantity" value="{{form.quantity}}" bindinput="onFieldInput" />
+    <input class="input" placeholder="购买日期 YYYY-MM-DD（可选）" data-field="purchaseDate" value="{{form.purchaseDate}}" bindinput="onFieldInput" />
+    <input class="input" placeholder="生产日期 YYYY-MM-DD（可选）" data-field="productionDate" value="{{form.productionDate}}" bindinput="onFieldInput" />
+    <view class="row">
+      <input class="input flex" type="number" placeholder="保质期数值" data-field="shelfLifeValue" value="{{form.shelfLifeValue}}" bindinput="onFieldInput" />
+      <picker mode="selector" range="{{shelfLifeUnits}}" bindchange="onShelfLifeUnitChange">
+        <view class="picker">{{form.shelfLifeUnit}}</view>
+      </picker>
+    </view>
+    <input class="input" placeholder="到期日期 YYYY-MM-DD *" data-field="expiryDate" value="{{form.expiryDate}}" bindinput="onFieldInput" />
+    <input wx:if="{{mode === 'new'}}" class="input" type="digit" placeholder="低库存阈值（可选）" data-field="lowStockThreshold" value="{{form.lowStockThreshold}}" bindinput="onFieldInput" />
+    <input wx:if="{{mode === 'new'}}" class="input" type="number" placeholder="临期阈值天数（可选）" data-field="expiryWarningDays" value="{{form.expiryWarningDays}}" bindinput="onFieldInput" />
+    <input class="input" type="digit" placeholder="购买价格（可选）" data-field="purchasePrice" value="{{form.purchasePrice}}" bindinput="onFieldInput" />
+    <textarea class="textarea" placeholder="备注（可选）" data-field="note" value="{{form.note}}" bindinput="onFieldInput" />
+
+    <button type="primary" loading="{{submitting}}" disabled="{{submitting}}" bindtap="submit">保存增加</button>
+  </view>
+
+  <view wx:if="{{result}}" class="success">{{result}}</view>
+  <view wx:if="{{error}}" class="error">{{error}}</view>
+</scroll-view>

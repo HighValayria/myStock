@@ -114,6 +114,8 @@ Not handled yet:
 
 ## Phase 2: Add / Consume / Edit Complete Loop
 
+Status: Code complete for Phase 2 implementation. Automated tests pass. Manual UI acceptance TC-P2-001 through TC-P2-008 is pending in WeChat DevTools; TC-P2-009 Undo is BLOCKED by unresolved product scope.
+
 Goal:
 
 - Deliver the core operational loop: add stock, consume stock by FEFO, edit item/batch properties, adjust quantity through ADJUST transaction.
@@ -123,7 +125,9 @@ Files:
 - `miniprogram/pages/stock-add/*`
 - `miniprogram/pages/stock-consume/*`
 - `miniprogram/pages/stock-edit/*`
-- `miniprogram/pages/item-detail/*`
+- `miniprogram/pages/index/*`
+- `miniprogram/services/phase2-ui-service.ts`
+- `miniprogram/utils/phase2-form.ts`
 - `miniprogram/services/inventory-service.ts`
 - `cloudfunctions/inventoryWrite/*`
 - `tests/services/inventory-service.test.ts`
@@ -150,7 +154,10 @@ UI:
 - Add stock form.
 - Consume stock form.
 - Edit item and batch form.
-- Item detail with batches and recent transactions.
+- Temporary clean home with Add / Consume / Edit entries.
+- Add stock form for new and existing items.
+- Consume stock form with current stock context and user-facing errors.
+- Edit page with Item properties, Batch properties, and explicit stock adjustment.
 
 Tests:
 
@@ -165,7 +172,8 @@ Acceptance:
 - User can add a new item and stock.
 - User can add more stock to an existing item.
 - User can consume stock correctly by FEFO.
-- User can correct quantity and see transaction history.
+- User can correct quantity through ADJUST.
+- Transaction history remains persisted by the existing service/cloud-function layer; a full transaction-history UI is deferred to later detail/browse work.
 
 Not handled yet:
 
@@ -426,6 +434,4 @@ Acceptance:
 Not handled yet:
 
 - V0.2 feature planning.
-
-
 

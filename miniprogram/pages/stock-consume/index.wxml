@@ -1,0 +1,23 @@
+<scroll-view class="page" scroll-y>
+  <view class="title">消耗库存</view>
+  <input class="input" placeholder="搜索当前有库存的物品" value="{{search}}" bindinput="onSearchInput" />
+  <view wx:if="{{loading}}" class="hint">加载中...</view>
+  <view wx:for="{{items}}" wx:key="id" class="item-row {{selectedItemId === item.id ? 'selected' : ''}}" data-id="{{item.id}}" bindtap="selectItem">
+    <view class="item-name">{{item.name}}</view>
+    <view class="item-summary">{{item.summary}}</view>
+  </view>
+  <view wx:if="{{!items.length && !loading}}" class="empty">暂无可消耗库存</view>
+
+  <view wx:if="{{detail}}" class="form">
+    <view class="selected-name">{{detail.item.name}} {{detail.item.specification}}</view>
+    <view class="context">当前库存：{{detail.totalQuantity}}{{detail.item.unit}}</view>
+    <view class="context">最近到期：{{nearestExpiryText}}</view>
+    <view class="context">系统将自动按 FEFO 扣减</view>
+    <input class="input" type="digit" placeholder="消耗数量" data-field="quantity" value="{{quantity}}" bindinput="onFieldInput" />
+    <textarea class="textarea" placeholder="备注（可选）" data-field="note" value="{{note}}" bindinput="onFieldInput" />
+    <button type="primary" loading="{{submitting}}" disabled="{{submitting}}" bindtap="submit">确认消耗</button>
+  </view>
+
+  <view wx:if="{{result}}" class="success">{{result}}</view>
+  <view wx:if="{{error}}" class="error">{{error}}</view>
+</scroll-view>

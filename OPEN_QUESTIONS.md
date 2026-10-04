@@ -4,21 +4,21 @@ Source of truth: `docs/INVENTORY_APP_V0.1_DESIGN_FREEZE.md`.
 
 Questions are grouped by when they must be resolved. These notes do not override the Design Freeze.
 
-## A. Must Resolve Before Phase 2
+## A. Must Resolve Before The Related UI Is Completed
+
+### Q2: Undo / Correction Basic Capability
+
+V0.1 includes “撤销 / 修正基本能力”, while delete rules prefer undo / reverse transaction for correcting mistakes. The exact undo scope is not defined: last operation only, transaction-level reversal, guided quantity correction, or some combination.
+
+Current engineering stance: Phase 2 implements explicit inventory correction through `adjustStock`, which creates ADJUST Transaction history. TC-P2-009 “撤销最近操作” is BLOCKED until the product rule defines undo scope. Do not invent an undo UI or reverse-transaction semantics without updating the Design Freeze.
+
+## B. Can Defer To Later Phase
 
 ### Q1: Units Management Data Shape
 
 The Settings page includes Unit Management, and Item has a free-form `unit` field. The Design Freeze does not define a `units` collection.
 
-Current engineering stance: Phase 1 keeps `Item.unit` as a string. Before Phase 2 UI work starts, decide whether add/edit forms use a free-text unit field or a managed unit list.
-
-### Q2: Undo / Correction Basic Capability
-
-V0.1 includes “撤销 / 修正基本能力”, while delete rules prefer undo / reverse transaction for correcting mistakes. The exact undo scope is not defined: last operation only, transaction-level reversal, or guided quantity correction.
-
-Current engineering stance: Phase 1 supports ADJUST correction and preserves Transaction history. Before Phase 2 interaction design, clarify whether UI exposes explicit undo or only inventory correction.
-
-## B. Can Defer To Later Phase
+Current engineering stance: Phase 2 add/edit forms use the existing free-text `Item.unit` string so the core loop is usable. A managed unit list can be revisited with Settings work or a future schema decision, but Phase 2 does not introduce a new units collection.
 
 ### Q3: Zero-Stock “Do Not Ask This Cycle” Persistence
 

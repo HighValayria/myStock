@@ -1,49 +1,40 @@
-// index.js
-const defaultAvatarUrl = 'https://mmbiz.qpic.cn/mmbiz/icTdbqWNOwNRna42FI242Lcia07jQodd2FJGIYQfG0LAJGFxM4FbnQP6yfMxBgJ0F3YRqJCJ1aPAK2dQagdusBZg/0'
-
+"use strict";
+/// <reference path="../../types/wechat.d.ts" />
+Object.defineProperty(exports, "__esModule", { value: true });
+const phase2_ui_service_1 = require("../../services/phase2-ui-service");
+const phase2_form_1 = require("../../utils/phase2-form");
 Page({
-  data: {
-    motto: 'Hello World',
-    userInfo: {
-      avatarUrl: defaultAvatarUrl,
-      nickName: '',
+    data: {
+        loading: false,
+        itemCount: 0,
+        batchHint: '打开后可增加、消耗、编辑库存',
+        error: '',
+        recentRows: [],
     },
-    hasUserInfo: false,
-    canIUseGetUserProfile: wx.canIUse('getUserProfile'),
-    canIUseNicknameComp: wx.canIUse('input.type.nickname'),
-  },
-  bindViewTap() {
-    wx.navigateTo({
-      url: '../logs/logs'
-    })
-  },
-  onChooseAvatar(e) {
-    const { avatarUrl } = e.detail
-    const { nickName } = this.data.userInfo
-    this.setData({
-      "userInfo.avatarUrl": avatarUrl,
-      hasUserInfo: nickName && avatarUrl && avatarUrl !== defaultAvatarUrl,
-    })
-  },
-  onInputChange(e) {
-    const nickName = e.detail.value
-    const { avatarUrl } = this.data.userInfo
-    this.setData({
-      "userInfo.nickName": nickName,
-      hasUserInfo: nickName && avatarUrl && avatarUrl !== defaultAvatarUrl,
-    })
-  },
-  getUserProfile(e) {
-    // 推荐使用wx.getUserProfile获取用户信息，开发者每次通过该接口获取用户个人信息均需用户确认，开发者妥善保管用户快速填写的头像昵称，避免重复弹窗
-    wx.getUserProfile({
-      desc: '展示用户信息', // 声明获取用户个人信息后的用途，后续会展示在弹窗中，请谨慎填写
-      success: (res) => {
-        console.log(res)
-        this.setData({
-          userInfo: res.userInfo,
-          hasUserInfo: true
-        })
-      }
-    })
-  },
-})
+    onShow() {
+        void this.loadSummary();
+    },
+    async loadSummary() {
+        this.setData({ loading: true, error: '' });
+        try {
+            const rows = await (0, phase2_ui_service_1.listInventoryRows)();
+            const recentRows = rows.slice(0, 5).map((row) => ({
+                id: row.item._id,
+                name: `${row.item.name}${row.item.specification ? ` ${row.item.specification}` : ''}`,
+                summary: `${row.totalQuantity}${row.item.unit}${row.nearestExpiryDate ? ` · 最近到期 ${row.nearestExpiryDate}` : ''}`,
+            }));
+            this.setData({
+                loading: false,
+                itemCount: rows.length,
+                batchHint: rows.length ? '最近操作物品会优先出现在选择列表' : '还没有库存，先增加一个物品',
+                recentRows,
+            });
+        }
+        catch (error) {
+            this.setData({ loading: false, error: (0, phase2_form_1.mapUserError)(error) });
+        }
+    },
+    goAdd() { wx.navigateTo({ url: '/pages/stock-add/index' }); },
+    goConsume() { wx.navigateTo({ url: '/pages/stock-consume/index' }); },
+    goEdit() { wx.navigateTo({ url: '/pages/stock-edit/index' }); },
+});

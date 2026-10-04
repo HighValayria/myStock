@@ -7,6 +7,11 @@ declare const wx: {
   getStorageSync(key: string): unknown;
   setStorageSync(key: string, value: unknown): void;
   login(options: { success?: (res: { code?: string }) => void; fail?: (err: unknown) => void }): void;
+  canIUse?(schema: string): boolean;
+  navigateTo(options: { url: string; success?: () => void; fail?: (err: unknown) => void }): void;
+  navigateBack(options?: { delta?: number }): void;
+  showToast(options: { title: string; icon?: 'success' | 'error' | 'loading' | 'none'; duration?: number }): void;
+  showModal(options: { title: string; content: string; showCancel?: boolean; confirmText?: string; cancelText?: string; success?: (res: { confirm: boolean; cancel: boolean }) => void; fail?: (err: unknown) => void }): void;
 };
 
 declare function App(options: Record<string, unknown>): void;

@@ -1,62 +1,23 @@
-/**index.wxss**/
-page {
-  height: 100vh;
-  display: flex;
-  flex-direction: column;
-}
-.scrollarea {
-  flex: 1;
-  overflow-y: hidden;
-}
-
-.userinfo {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  color: #aaa;
-  width: 80%;
-}
-
-.userinfo-avatar {
-  overflow: hidden;
-  width: 128rpx;
-  height: 128rpx;
-  margin: 20rpx;
-  border-radius: 50%;
-}
-
-.usermotto {
-  margin-top: 200px;
-}
-
-.avatar-wrapper {
-  padding: 0;
-  width: 56px !important;
-  border-radius: 8px;
-  margin-top: 40px;
-  margin-bottom: 40px;
-}
-
-.avatar {
-  display: block;
-  width: 56px;
-  height: 56px;
-}
-
-.nickname-wrapper {
-  display: flex;
-  width: 100%;
-  padding: 16px;
+.page {
+  min-height: 100vh;
+  padding: 40rpx 32rpx;
   box-sizing: border-box;
-  border-top: .5px solid rgba(0, 0, 0, 0.1);
-  border-bottom: .5px solid rgba(0, 0, 0, 0.1);
-  color: black;
+  background: #f7f7f4;
+  color: #1f2933;
 }
 
-.nickname-label {
-  width: 105px;
-}
-
-.nickname-input {
-  flex: 1;
-}
+.header { margin-bottom: 28rpx; }
+.title { font-size: 44rpx; font-weight: 700; margin-bottom: 8rpx; }
+.subtitle, .muted, .empty, .recent-summary { color: #667085; font-size: 26rpx; }
+.summary { display: flex; align-items: baseline; gap: 12rpx; margin-bottom: 32rpx; }
+.summary-number { font-size: 64rpx; font-weight: 700; }
+.summary-label { color: #475467; font-size: 26rpx; }
+.actions { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16rpx; margin-bottom: 36rpx; }
+.action { height: 96rpx; line-height: 96rpx; padding: 0; border-radius: 8rpx; color: #ffffff; font-size: 28rpx; }
+.add { background: #1677ff; }
+.consume { background: #d92d20; }
+.edit { background: #475467; }
+.section-title { font-size: 30rpx; font-weight: 600; margin-bottom: 16rpx; }
+.recent-row { padding: 20rpx 0; border-bottom: 1rpx solid #e4e7ec; }
+.recent-name { font-size: 30rpx; font-weight: 600; margin-bottom: 6rpx; }
+.error { color: #b42318; background: #fee4e2; padding: 18rpx; border-radius: 8rpx; margin-bottom: 24rpx; font-size: 26rpx; }

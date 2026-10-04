@@ -1,12 +1,15 @@
 {
   "pages": [
     "pages/index/index",
-    "pages/logs/logs",
-    "pages/dev-cloud-check/index"
+    "pages/stock-add/index",
+    "pages/stock-consume/index",
+    "pages/stock-edit/index",
+    "pages/dev-cloud-check/index",
+    "pages/logs/logs"
   ],
   "window": {
     "navigationBarTextStyle": "black",
-    "navigationBarTitleText": "Weixin",
+    "navigationBarTitleText": "我的库存",
     "navigationBarBackgroundColor": "#ffffff"
   },
   "style": "v2",
@@ -14,4 +17,3 @@
   "sitemapLocation": "sitemap.json",
   "lazyCodeLoading": "requiredComponents"
 }
-
