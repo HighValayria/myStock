@@ -16,6 +16,7 @@
   </view>
 
   <view wx:if="{{error}}" class="error">{{error}}</view>
+  <button wx:if="{{error}}" class="retry" bindtap="loadSummary">重新加载</button>
   <view wx:if="{{loading}}" class="muted">加载中...</view>
 
   <view class="section-title">最近使用</view>

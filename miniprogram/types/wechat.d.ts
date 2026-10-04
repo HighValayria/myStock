@@ -1,3 +1,4 @@
+declare function require(path: string): unknown;
 declare const wx: {
   cloud?: {
     init(options: { env?: string; traceUser?: boolean }): void;

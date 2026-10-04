@@ -11,7 +11,8 @@ exports.updateItem = updateItem;
 exports.updateBatch = updateBatch;
 const cloud_1 = require("../config/cloud");
 const repositories_1 = require("../repositories");
-const index_1 = require("./index");
+const inventory_service_1 = require("./inventory-service");
+const inventory_mutation_client_1 = require("./inventory-mutation-client");
 let cachedContext = null;
 async function getOpenId() {
     (0, cloud_1.initCloud)();
@@ -28,10 +29,10 @@ async function getPhase2Context() {
         return cachedContext;
     const userId = await getOpenId();
     const repos = (0, repositories_1.createRepositories)('cloud');
-    const inventory = new index_1.InventoryService(repos, {
+    const inventory = new inventory_service_1.InventoryService(repos, {
         userId,
         defaultExpiryWarningDays: 7,
-        mutationClient: new index_1.CloudFunctionInventoryMutationClient(),
+        mutationClient: new inventory_mutation_client_1.CloudFunctionInventoryMutationClient(),
         requireMutationClientForWrites: true,
     });
     cachedContext = { userId, repos, inventory };

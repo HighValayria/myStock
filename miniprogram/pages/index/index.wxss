@@ -21,3 +21,4 @@
 .recent-row { padding: 20rpx 0; border-bottom: 1rpx solid #e4e7ec; }
 .recent-name { font-size: 30rpx; font-weight: 600; margin-bottom: 6rpx; }
 .error { color: #b42318; background: #fee4e2; padding: 18rpx; border-radius: 8rpx; margin-bottom: 24rpx; font-size: 26rpx; }
+.retry { margin-bottom: 24rpx; font-size: 26rpx; }

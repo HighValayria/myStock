@@ -1,6 +1,5 @@
 /// <reference path="../../types/wechat.d.ts" />
 
-import { listInventoryRows } from '../../services/phase2-ui-service';
 import type { Phase2InventoryRow } from '../../services/phase2-ui-service';
 import { mapUserError } from '../../utils/phase2-form';
 
@@ -15,6 +14,10 @@ interface HomeData {
 interface HomePage {
   setData(data: Partial<HomeData>): void;
   loadSummary(): Promise<void>;
+}
+
+function getPhase2Service(): typeof import('../../services/phase2-ui-service') {
+  return require('../../services/phase2-ui-service') as typeof import('../../services/phase2-ui-service');
 }
 
 Page({
@@ -33,6 +36,7 @@ Page({
   async loadSummary(this: HomePage) {
     this.setData({ loading: true, error: '' });
     try {
+      const { listInventoryRows } = getPhase2Service();
       const rows = await listInventoryRows();
       const recentRows = rows.slice(0, 5).map((row: Phase2InventoryRow) => ({
         id: row.item._id,

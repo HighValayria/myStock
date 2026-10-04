@@ -1,8 +1,10 @@
 "use strict";
 /// <reference path="../../types/wechat.d.ts" />
 Object.defineProperty(exports, "__esModule", { value: true });
-const phase2_ui_service_1 = require("../../services/phase2-ui-service");
 const phase2_form_1 = require("../../utils/phase2-form");
+function getPhase2Service() {
+    return require('../../services/phase2-ui-service');
+}
 Page({
     data: {
         loading: false,
@@ -17,7 +19,8 @@ Page({
     async loadSummary() {
         this.setData({ loading: true, error: '' });
         try {
-            const rows = await (0, phase2_ui_service_1.listInventoryRows)();
+            const { listInventoryRows } = getPhase2Service();
+            const rows = await listInventoryRows();
             const recentRows = rows.slice(0, 5).map((row) => ({
                 id: row.item._id,
                 name: `${row.item.name}${row.item.specification ? ` ${row.item.specification}` : ''}`,

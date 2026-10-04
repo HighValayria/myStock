@@ -1,7 +1,8 @@
 import { initCloud } from '../config/cloud';
 import type { AddStockInput, AdjustStockInput, ConsumeStockInput, InventoryListItem, ItemDetail, UpdateBatchInput, UpdateItemInput } from '../models';
 import { createRepositories, type InventoryRepositories } from '../repositories';
-import { CloudFunctionInventoryMutationClient, InventoryService } from './index';
+import { InventoryService } from './inventory-service';
+import { CloudFunctionInventoryMutationClient } from './inventory-mutation-client';
 
 interface OpenIdResult {
   openid?: string;
