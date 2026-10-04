@@ -1641,9 +1641,10 @@ pages/dev-cloud-check/index
 Steps:
 
 1. Configure CloudBase environment in `miniprogram/config/env.ts` or keep it empty to use the currently selected DevTools environment.
-2. Deploy `cloudfunctions/getOpenId`.
-3. Deploy `cloudfunctions/inventoryWrite`.
-4. Create required collections listed in `docs/CLOUDBASE_SETUP.md`.
+2. Ensure the `cloudfunctions` root has selected the intended cloud environment in WeChat DevTools.
+3. Deploy `cloudfunctions/getOpenId` with `upload and deploy: cloud install dependencies`.
+4. Deploy `cloudfunctions/inventoryWrite` with `upload and deploy: cloud install dependencies`.
+5. Create required collections listed in `docs/CLOUDBASE_SETUP.md`.
 5. Open the page `pages/dev-cloud-check/index` in WeChat DevTools.
 6. Click `Run Cloud Check`.
 

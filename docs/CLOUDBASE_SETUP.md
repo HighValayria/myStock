@@ -49,6 +49,8 @@ Required cloud functions:
 - `inventoryWrite`: performs core inventory mutations in server-side transactions.
 - `dbInit`: documents expected collections and recommended indexes; it is intentionally non-destructive.
 
+Deployment note: each cloud function directory includes a deployable `index.js`. In WeChat DevTools, deploy the function folder with `upload and deploy: cloud install dependencies`. Do not deploy only the `.ts` source file.
+
 ## Required Collections
 
 Create these collections in CloudBase:
