@@ -3,7 +3,7 @@ import { InventoryService, ReminderService } from '../miniprogram/services';
 import type { InventoryMutationClient } from '../miniprogram/services';
 import { InventoryError } from '../miniprogram/utils/errors';
 import { resetIdSequenceForTests } from '../miniprogram/utils/id';
-import { parseNonNegativeNumber, parsePositiveNumber, resolveExpiryDate } from '../miniprogram/utils/phase2-form';
+import { DEFAULT_UNIT, UNKNOWN_EXPIRY_DATE, calculateExpiryDateFromShelfLife, parseNonNegativeNumber, parsePositiveNumber, resolveExpiryDate } from '../miniprogram/utils/phase2-form';
 import type { AddStockInput, CreateItemInput } from '../miniprogram/models';
 
 interface TestContext {
@@ -269,6 +269,14 @@ const tests: Array<[string, () => Promise<void>]> = [
     await assertRejects(async () => parsePositiveNumber('0', '数量'), 'VALIDATION_ERROR', 'positive number rejects zero');
     assertEqual(parseNonNegativeNumber('0', '实际数量'), 0, 'adjust actual quantity allows zero');
     await assertRejects(async () => parseNonNegativeNumber('-1', '实际数量'), 'VALIDATION_ERROR', 'adjust actual quantity rejects negative');
+    assertEqual(DEFAULT_UNIT, '个', 'phase 2 default unit');
+    assertEqual(resolveExpiryDate({ allowUnknown: true }), UNKNOWN_EXPIRY_DATE, 'unknown expiry compatibility value');
+    assertEqual(
+      calculateExpiryDateFromShelfLife({ productionDate: '2026-10-04', shelfLifeValue: 6, shelfLifeUnit: 'MONTH' }),
+      '2027-04-04',
+      'month shelf life calculates expected expiry',
+    );
+    await assertRejects(async () => resolveExpiryDate({ expiryDate: '2026-02-30' }), 'VALIDATION_ERROR', 'invalid date is rejected');
   }],
 ];
 

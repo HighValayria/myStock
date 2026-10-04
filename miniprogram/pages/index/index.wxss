@@ -12,8 +12,8 @@
 .summary { display: flex; align-items: baseline; gap: 12rpx; margin-bottom: 32rpx; }
 .summary-number { font-size: 64rpx; font-weight: 700; }
 .summary-label { color: #475467; font-size: 26rpx; }
-.actions { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16rpx; margin-bottom: 36rpx; }
-.action { height: 96rpx; line-height: 96rpx; padding: 0; border-radius: 8rpx; color: #ffffff; font-size: 28rpx; }
+.actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12rpx; margin-bottom: 36rpx; width: 100%; }
+.action { width: 100%; min-width: 0; height: 96rpx; line-height: 96rpx; margin: 0; padding: 0; box-sizing: border-box; border-radius: 8rpx; color: #ffffff; font-size: 28rpx; }
 .add { background: #1677ff; }
 .consume { background: #d92d20; }
 .edit { background: #475467; }

@@ -1,18 +1,37 @@
 <scroll-view class="page" scroll-y>
   <view class="title">消耗库存</view>
-  <input class="input" placeholder="搜索当前有库存的物品" value="{{search}}" bindinput="onSearchInput" />
-  <view wx:if="{{loading}}" class="hint">加载中...</view>
-  <view wx:for="{{items}}" wx:key="id" class="item-row {{selectedItemId === item.id ? 'selected' : ''}}" data-id="{{item.id}}" bindtap="selectItem">
-    <view class="item-name">{{item.name}}</view>
-    <view class="item-summary">{{item.summary}}</view>
-  </view>
-  <view wx:if="{{!items.length && !loading}}" class="empty">暂无可消耗库存</view>
 
-  <view wx:if="{{detail}}" class="form">
+  <view class="section">
+    <input class="input" placeholder="搜索物品" value="{{search}}" bindinput="onSearchInput" />
+
+    <view class="section-label">最近使用</view>
+    <scroll-view scroll-x class="recent-strip">
+      <view wx:for="{{recentItems}}" wx:key="id" class="recent-chip" data-id="{{item.id}}" bindtap="selectItem">{{item.name}}</view>
+      <view wx:if="{{emptyRecentItems}}" class="hint">暂无最近使用</view>
+    </scroll-view>
+
+    <view class="section-label">分类</view>
+    <picker mode="selector" range="{{categoryNames}}" bindchange="onCategoryChange">
+      <view class="select-box">{{selectedCategoryName}}</view>
+    </picker>
+  </view>
+
+  <view class="section">
+    <view class="section-title">可消耗库存</view>
+    <view wx:if="{{loading}}" class="hint">加载中...</view>
+    <view wx:for="{{items}}" wx:key="id" class="item-row" data-id="{{item.id}}" bindtap="selectItem">
+      <view class="item-name">{{item.name}}</view>
+      <view class="item-summary">{{item.summary}}</view>
+    </view>
+    <view wx:if="{{emptyItems}}" class="empty">当前筛选下没有可消耗库存</view>
+  </view>
+
+  <view wx:if="{{detail}}" class="section emphasized">
+    <view class="section-title">确认消耗</view>
     <view class="selected-name">{{detail.item.name}} {{detail.item.specification}}</view>
     <view class="context">当前库存：{{detail.totalQuantity}}{{detail.item.unit}}</view>
     <view class="context">最近到期：{{nearestExpiryText}}</view>
-    <view class="context">系统将自动按 FEFO 扣减</view>
+    <view class="hint">系统将自动按 FEFO 扣减</view>
     <input class="input" type="digit" placeholder="消耗数量" data-field="quantity" value="{{quantity}}" bindinput="onFieldInput" />
     <textarea class="textarea" placeholder="备注（可选）" data-field="note" value="{{note}}" bindinput="onFieldInput" />
     <button type="primary" loading="{{submitting}}" disabled="{{submitting}}" bindtap="submit">确认消耗</button>

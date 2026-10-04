@@ -25,6 +25,9 @@ Phase 0 / Phase 1 CloudBase integration remains accepted for continuation, with 
 - Edit stock page for Item properties, Batch properties, and explicit ADJUST quantity correction.
 - Phase 2 UI service that routes pages through InventoryService instead of direct database writes.
 - Phase 2 form validation and user-facing error mapping.
+- Phase 2 UI/UX收尾：增加页分组、更多信息折叠、默认单位、分类/位置选择与新建、日期选择、成功后继续添加/回首页。
+- 消耗页支持类别筛选、最近使用和仅展示可用库存。
+- 首页三个核心操作按钮使用响应式三等分布局，避免窄屏溢出。
 
 ## Automated Verification
 
@@ -60,7 +63,7 @@ Verified previously in WeChat DevTools against real CloudBase:
 
 Pending Phase 2 manual UI acceptance in WeChat DevTools:
 
-- TC-P2-001 through TC-P2-008.
+- TC-P2-001 through TC-P2-008 and TC-P2-010 through TC-P2-022.
 
 Deferred manual verification:
 

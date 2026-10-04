@@ -1,6 +1,7 @@
 # Phase 2 Test Report - Add / Consume / Edit Loop
 
 Date: 2026-10-04
+Updated: 2026-10-04 Phase 2 UI/UX closeout
 
 ## Scope
 
@@ -13,6 +14,9 @@ Implemented Phase 2 only:
 - Recent-use ordering based on latest Transaction timestamp.
 - User-facing success / error feedback.
 - Form validation for required fields, numeric values, date conflicts, loading / disabled submit states.
+- UI/UX closeout for Add page: grouped sections, common fields first, more info collapsed by default, default unit, category/location selection and creation, date picker plus manual date input, success modal.
+- Consume page category filter, recent-use strip, and positive-stock-only list.
+- Home action buttons use responsive three-column layout to keep Add / Consume / Edit visible on narrow screens.
 
 Not implemented in this phase:
 
@@ -52,7 +56,7 @@ Covered by automation:
 - operationId duplicate prevention.
 - Cloud-mode mutation delegation contract.
 - Repository user isolation at repository level.
-- Phase 2 form helper validation for expiry date, shelf life, positive quantities, and non-negative stock correction.
+- Phase 2 form helper validation for expiry date, shelf life, positive quantities, non-negative stock correction, default unit, unknown expiry compatibility, month-based expiry calculation, and invalid date rejection.
 
 ## Phase 1 Regression
 
@@ -83,6 +87,19 @@ Not executed by Codex in WeChat DevTools during this run. These must be executed
 - TC-P2-007 编辑 Batch 属性: PENDING
 - TC-P2-008 编辑数量产生 ADJUST: PENDING
 - TC-P2-009 撤销最近操作: BLOCKED by unresolved product rule
+- TC-P2-010 增加页字段分组: PENDING
+- TC-P2-011 单位默认值: PENDING
+- TC-P2-012 类别已有选择: PENDING
+- TC-P2-013 新建类别: PENDING
+- TC-P2-014 位置已有选择 / 新建: PENDING
+- TC-P2-015 日期选择器: PENDING
+- TC-P2-016 自动计算到期日: PENDING
+- TC-P2-017 直接填写到期日: PENDING
+- TC-P2-018 阈值不阻塞新增: PENDING
+- TC-P2-019 新增成功弹窗: PENDING
+- TC-P2-020 连续添加: PENDING
+- TC-P2-021 消耗类别筛选: PENDING
+- TC-P2-022 三个首页操作按钮布局: PENDING
 
 ## Simulator / Real Device
 
@@ -95,13 +112,18 @@ None found by automated tests.
 
 ## Deferred Tests
 
-- TC-P2-001 through TC-P2-008 manual UI acceptance.
+- TC-P2-001 through TC-P2-008 and TC-P2-010 through TC-P2-022 manual UI acceptance.
 - TC-P2-009 undo behavior, pending Design Freeze clarification.
 - Two-account `_openid` isolation, pending second authorized WeChat developer account.
 
+## Open Questions
+
+- Unknown / not-applicable expiry needs a formal product representation. Phase 2 currently uses `9999-12-31` as a schema-compatible value when users omit expiry information.
+- Undo remains blocked by product definition.
+
 ## Phase 3 Readiness
 
-Recommendation: do not start Phase 3 until TC-P2-001 through TC-P2-008 pass in WeChat DevTools. TC-P2-009 is blocked by product definition and should remain tracked in `OPEN_QUESTIONS.md`.
+Recommendation: do not start Phase 3 until TC-P2-001 through TC-P2-008 and TC-P2-010 through TC-P2-022 pass in WeChat DevTools. TC-P2-009 is blocked by product definition and should remain tracked in `OPEN_QUESTIONS.md`.
 
 ## Manual Acceptance Steps
 
@@ -109,8 +131,10 @@ Recommendation: do not start Phase 3 until TC-P2-001 through TC-P2-008 pass in W
 2. Confirm `miniprogram/config/env.ts` points to the intended CloudBase environment, or leave it empty and select the environment in DevTools.
 3. Confirm cloud functions `getOpenId` and `inventoryWrite` are deployed.
 4. Compile and open the home page.
-5. Run TC-P2-001 through TC-P2-008 from `docs/MANUAL_TEST_CASES.md`.
+5. Run TC-P2-001 through TC-P2-008 and TC-P2-010 through TC-P2-022 from `docs/MANUAL_TEST_CASES.md`.
 6. After each write, optionally inspect Cloud Database collections:
+   - `categories`
+   - `locations`
    - `items`
    - `batches`
    - `transactions`

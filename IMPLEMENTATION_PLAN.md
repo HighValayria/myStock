@@ -114,7 +114,7 @@ Not handled yet:
 
 ## Phase 2: Add / Consume / Edit Complete Loop
 
-Status: Code complete for Phase 2 implementation. Automated tests pass. Manual UI acceptance TC-P2-001 through TC-P2-008 is pending in WeChat DevTools; TC-P2-009 Undo is BLOCKED by unresolved product scope.
+Status: Code complete for Phase 2 implementation and UI/UX closeout. Automated tests pass. Manual UI acceptance TC-P2-001 through TC-P2-008 and TC-P2-010 through TC-P2-022 is pending in WeChat DevTools; TC-P2-009 Undo is BLOCKED by unresolved product scope.
 
 Goal:
 

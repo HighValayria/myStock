@@ -1,6 +1,10 @@
 import type { ShelfLifeUnit } from '../models';
 import { InventoryError } from './errors';
 
+export const DEFAULT_UNIT = '个';
+export const COMMON_UNITS = ['个', '盒', '瓶', '包', '袋', '支', '罐', '卷'];
+export const UNKNOWN_EXPIRY_DATE = '9999-12-31';
+
 export interface ParsedOptionalNumberOptions {
   integer?: boolean;
   min?: number;
@@ -34,10 +38,41 @@ export function parseOptionalNumber(value: unknown, label: string, options: Pars
   return options.integer ? Math.trunc(numeric) : numeric;
 }
 
+export function normalizeDateInput(value: unknown, label: string): string | null {
+  if (isBlank(value)) return null;
+  const raw = String(value).trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) {
+    throw new InventoryError('VALIDATION_ERROR', `${label}格式应为 YYYY-MM-DD`);
+  }
+  const [year, month, day] = raw.split('-').map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  if (date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) {
+    throw new InventoryError('VALIDATION_ERROR', `${label}不是有效日期`);
+  }
+  return raw;
+}
+
 export function assertDateOrder(productionDate: string | null | undefined, expiryDate: string): void {
   if (productionDate && expiryDate < productionDate) {
     throw new InventoryError('VALIDATION_ERROR', '到期日期不能早于生产日期');
   }
+}
+
+export function calculateExpiryDateFromShelfLife(input: {
+  productionDate?: string | null;
+  shelfLifeValue?: number | null;
+  shelfLifeUnit?: ShelfLifeUnit | null;
+}): string | null {
+  if (isBlank(input.productionDate) || input.shelfLifeValue == null || !input.shelfLifeUnit) return null;
+  const productionDate = normalizeDateInput(input.productionDate, '生产日期');
+  if (!productionDate) return null;
+  const date = new Date(`${productionDate}T00:00:00.000Z`);
+  if (input.shelfLifeUnit === 'DAY') date.setUTCDate(date.getUTCDate() + input.shelfLifeValue);
+  if (input.shelfLifeUnit === 'MONTH') date.setUTCMonth(date.getUTCMonth() + input.shelfLifeValue);
+  if (input.shelfLifeUnit === 'YEAR') date.setUTCFullYear(date.getUTCFullYear() + input.shelfLifeValue);
+  const expiryDate = date.toISOString().slice(0, 10);
+  assertDateOrder(productionDate, expiryDate);
+  return expiryDate;
 }
 
 export function resolveExpiryDate(input: {
@@ -45,23 +80,22 @@ export function resolveExpiryDate(input: {
   productionDate?: string | null;
   shelfLifeValue?: number | null;
   shelfLifeUnit?: ShelfLifeUnit | null;
+  allowUnknown?: boolean;
 }): string {
-  if (!isBlank(input.expiryDate)) {
-    const expiryDate = String(input.expiryDate).trim();
-    assertDateOrder(input.productionDate, expiryDate);
-    return expiryDate;
+  const productionDate = normalizeDateInput(input.productionDate, '生产日期');
+  const manualExpiry = normalizeDateInput(input.expiryDate, '到期日期');
+  if (manualExpiry) {
+    assertDateOrder(productionDate, manualExpiry);
+    return manualExpiry;
   }
-  if (isBlank(input.productionDate) || input.shelfLifeValue == null || !input.shelfLifeUnit) {
-    throw new InventoryError('VALIDATION_ERROR', '请填写到期日期，或填写生产日期和保质期');
-  }
-  const date = new Date(`${input.productionDate}T00:00:00.000Z`);
-  if (Number.isNaN(date.getTime())) throw new InventoryError('VALIDATION_ERROR', '生产日期格式不正确');
-  if (input.shelfLifeUnit === 'DAY') date.setUTCDate(date.getUTCDate() + input.shelfLifeValue);
-  if (input.shelfLifeUnit === 'MONTH') date.setUTCMonth(date.getUTCMonth() + input.shelfLifeValue);
-  if (input.shelfLifeUnit === 'YEAR') date.setUTCFullYear(date.getUTCFullYear() + input.shelfLifeValue);
-  const expiryDate = date.toISOString().slice(0, 10);
-  assertDateOrder(input.productionDate, expiryDate);
-  return expiryDate;
+  const calculated = calculateExpiryDateFromShelfLife({
+    productionDate,
+    shelfLifeValue: input.shelfLifeValue,
+    shelfLifeUnit: input.shelfLifeUnit,
+  });
+  if (calculated) return calculated;
+  if (input.allowUnknown) return UNKNOWN_EXPIRY_DATE;
+  throw new InventoryError('VALIDATION_ERROR', '请填写到期日期，或填写生产日期和保质期');
 }
 
 export function createUiOperationId(prefix: string): string {

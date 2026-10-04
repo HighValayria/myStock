@@ -26,6 +26,12 @@ The Design Freeze says if the user declines restock after zero stock, this cycle
 
 Can defer to Phase 4. Current proposed implementation remains: use ZERO_STOCK Reminder status DISMISSED for the cycle and create RestockItem only when user chooses yes.
 
+### Q7: Unknown Expiry Date Compatibility
+
+Phase 2 UX requires the quick path “name + quantity” to save without forcing production date or expiry date. The current V0.1 schema requires `Batch.expiryDate`.
+
+Current engineering stance: Phase 2 stores `9999-12-31` as a temporary compatibility value when the user leaves expiry information blank. This keeps existing schema and FEFO machinery running, but the product should later explicitly define an “unknown / not applicable expiry” representation.
+
 ### Q4: Standard Excel Template
 
 V0.1 requires standard Excel import and Excel export, but the exact column template is not frozen.
