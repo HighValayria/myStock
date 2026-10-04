@@ -6,7 +6,7 @@ This plan is split by independently runnable user capability, not by frontend/ba
 
 ## Phase 0: Engineering Initialization and CloudBase Infrastructure
 
-Status: Code-complete for Phase 0 plus final CloudBase architecture. Final CloudBase acceptance is pending WeChat DevTools manual verification of environment initialization, `getOpenId`, `inventoryWrite`, collections, and user isolation.
+Status: Accepted for Phase 0 continuation. Real CloudBase initialization, `getOpenId`, `inventoryWrite`, collections, and diagnostic page verification passed; two-account user isolation is deferred until a second authorized WeChat developer account is available.
 
 Goal:
 
@@ -58,7 +58,7 @@ Not handled yet:
 
 ## Phase 1: Data Layer and Core Inventory Domain
 
-Status: Code-complete for Phase 1 plus server-side CloudBase mutation integration. Automated domain tests pass, but final CloudBase acceptance is pending manual verification of Cloud Repository reads/CRUD, `inventoryWrite` addStock/consumeStock/adjustStock, Batch/Transaction consistency, idempotency, and user isolation.
+Status: Accepted for Phase 1 continuation. Automated domain tests pass, and real CloudBase diagnostics verified addStock/consumeStock/adjustStock, Batch/Transaction consistency, idempotency, over-consume failure, FEFO, and batch merge rules. Two-account user isolation is deferred until test conditions are available.
 
 Goal:
 

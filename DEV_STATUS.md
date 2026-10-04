@@ -2,7 +2,7 @@
 
 ## Current Phase
 
-Phase 0 / Phase 1 CloudBase integration hardening.
+Phase 0 / Phase 1 CloudBase integration accepted for continuation to Phase 2, with two-account isolation deferred until a second authorized WeChat developer account is available.
 
 ## Completed In Code
 
@@ -33,21 +33,25 @@ Latest result:
 16 tests passed
 ```
 
-## Pending Manual Verification
+## Manual Verification
 
-Phase 0 / Phase 1 are not finally accepted against real CloudBase until these are run in WeChat DevTools:
+Verified in WeChat DevTools against real CloudBase:
 
 - CloudBase initialization.
 - `getOpenId` deployment and invocation.
 - `inventoryWrite` deployment and invocation.
 - Required collections exist.
-- Cloud Repository CRUD against real Cloud Database.
-- addStock cloud persistence through cloud function transaction.
-- consumeStock FEFO cloud persistence through cloud function transaction.
-- adjustStock cloud persistence through cloud function transaction.
-- Batch / Transaction consistency.
+- Main addStock / consumeStock / adjustStock chain through `inventoryWrite`.
+- Batch / Transaction consistency in Cloud Database.
 - Duplicate `operationId` idempotency in the cloud function.
-- Two-account user isolation.
+- Over-consume failure without Batch / Transaction half writes.
+- Multi-batch FEFO consume.
+- Same-batch merge and different-expiry no-merge rules.
+- Dev data cleanup.
+
+Deferred manual verification:
+
+- Two-account user isolation. Reason: no second authorized WeChat developer account is currently available. Repository-level isolation remains covered by automated tests; platform-authenticated `_openid` isolation must be confirmed later with two accounts.
 
 See:
 
@@ -59,4 +63,4 @@ See:
 
 Not started.
 
-Do not start Phase 2 until the `inventoryWrite` cloud function path and user isolation are manually verified in WeChat DevTools.
+Phase 2 may start after this checkpoint. Two-account isolation remains a tracked deferred manual test and should be completed before release or before any sharing-related scope is considered.

@@ -1,6 +1,6 @@
 # Phase 0 / Phase 1 CloudBase Integration Test Report
 
-Date: 2026-10-03
+Date: 2026-10-04
 Scope: Phase 0 / Phase 1 cloud repository, repository switching, server-side mutation transaction boundary, idempotency, user isolation contract, and development diagnostic path.
 
 ## Automated Tests
@@ -63,24 +63,33 @@ Implemented contract:
 - `operationId` is checked inside the transaction so retrying the same operation does not double-write.
 - FEFO candidate batches are selected before the transaction, then re-read and validated inside the transaction before deduction.
 - If Transaction creation fails, the transaction aborts and Batch changes roll back.
-## Manual CloudBase Tests Required
 
-These require WeChat DevTools and a real CloudBase environment:
+## Manual CloudBase Verification
+
+Verified in WeChat DevTools against a real CloudBase environment:
 
 - CloudBase initialization validation.
-- Cloud Repository basic reads and CRUD against real collections.
+- `getOpenId` returned the current WeChat user's OpenID.
 - `inventoryWrite` deployment and invocation.
 - addStock cloud persistence through server-side transaction.
-- consumeStock FEFO cloud persistence through server-side transaction.
+- consumeStock cloud persistence through server-side transaction.
 - adjustStock cloud persistence through server-side transaction.
 - Batch / Transaction consistency in real Cloud Database.
 - Duplicate `operationId` idempotency in the real cloud function.
-- two-account `_openid` isolation.
+- Over-consume failure without Batch / Transaction half writes.
+- Multi-batch FEFO consume.
+- Same-batch merge.
+- Different-expiry no-merge.
+- Dev-created data cleanup.
+
+Deferred:
+
+- Two-account `_openid` isolation. Not executed because a second authorized WeChat developer account is not currently available.
 
 Manual test cases are documented in `docs/MANUAL_TEST_CASES.md` under `Phase 0 / Phase 1 CloudBase Integration Addendum`.
 
 ## Current Acceptance Status
 
-Phase 0 / Phase 1 implementation is code-complete for the final CloudBase architecture. Final cloud acceptance is pending manual execution in WeChat DevTools against a real environment.
+Phase 0 / Phase 1 are accepted for continuing to Phase 2, with one deferred manual verification item: two-account `_openid` isolation. The deferred item is caused by missing test conditions, not by a known implementation failure.
 
 The final consistency decision is no longer open: core inventory transactions are executed by `inventoryWrite` with CloudBase Node SDK server-side transactions, not by mini program client-side `wx.cloud.database().runTransaction`.
