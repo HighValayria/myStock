@@ -1,5 +1,6 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
+/// <reference path="../../types/wechat.d.ts" />
 const cloud_1 = require("../../config/cloud");
 const repositories_1 = require("../../repositories");
 const services_1 = require("../../services");
@@ -7,14 +8,15 @@ function append(lines, line) {
     lines.push(line);
 }
 async function cleanupDevItem(itemId) {
-    const result = await wx.cloud.callFunction({
+    const response = await wx.cloud.callFunction({
         name: 'inventoryWrite',
         data: { action: 'cleanupDevItem', payload: { itemId } },
     });
-    if (!result.result?.ok) {
-        return `cleanup failed: ${result.result?.error?.message ?? 'unknown error'}`;
+    const result = response.result;
+    if (!result?.ok) {
+        return `cleanup failed: ${result?.error?.message ?? 'unknown error'}`;
     }
-    return `cleanup ok: ${JSON.stringify(result.result.data?.removed)}`;
+    return `cleanup ok: ${JSON.stringify(result.data?.removed)}`;
 }
 Page({
     data: {

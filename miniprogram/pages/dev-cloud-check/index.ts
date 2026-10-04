@@ -1,3 +1,4 @@
+/// <reference path="../../types/wechat.d.ts" />
 import { initCloud } from '../../config/cloud';
 import { createRepositories } from '../../repositories';
 import { CloudFunctionInventoryMutationClient, InventoryService } from '../../services';
@@ -26,14 +27,15 @@ function append(lines: string[], line: string): void {
 }
 
 async function cleanupDevItem(itemId: string): Promise<string> {
-  const result = await wx.cloud!.callFunction<CloudFunctionResult<{ itemId: string; removed: Record<string, number> }>>({
+  const response = await wx.cloud!.callFunction({
     name: 'inventoryWrite',
     data: { action: 'cleanupDevItem', payload: { itemId } },
   });
-  if (!result.result?.ok) {
-    return `cleanup failed: ${result.result?.error?.message ?? 'unknown error'}`;
+  const result = response.result as CloudFunctionResult<{ itemId: string; removed: Record<string, number> }> | undefined;
+  if (!result?.ok) {
+    return `cleanup failed: ${result?.error?.message ?? 'unknown error'}`;
   }
-  return `cleanup ok: ${JSON.stringify(result.result.data?.removed)}`;
+  return `cleanup ok: ${JSON.stringify(result.data?.removed)}`;
 }
 
 Page({
@@ -50,8 +52,8 @@ Page({
       initCloud();
       append(lines, 'Cloud initialized');
 
-      const openIdRes = await wx.cloud!.callFunction<OpenIdResult>({ name: 'getOpenId' });
-      const openid = openIdRes.result?.openid;
+      const openIdRes = await wx.cloud!.callFunction({ name: 'getOpenId' });
+      const openid = (openIdRes.result as OpenIdResult | undefined)?.openid;
       if (!openid) throw new Error('getOpenId returned empty openid');
       append(lines, `Current openid: ${openid}`);
 
