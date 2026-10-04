@@ -1,7 +1,7 @@
 # Phase 2 Test Report - Add / Consume / Edit Loop
 
 Date: 2026-10-04
-Updated: 2026-10-04 Phase 2 UI/UX closeout
+Updated: 2026-10-04 Phase 2 cloud read/taxonomy/edit UX fix
 
 ## Scope
 
@@ -17,6 +17,10 @@ Implemented Phase 2 only:
 - UI/UX closeout for Add page: grouped sections, common fields first, more info collapsed by default, default unit, category/location selection and creation, date picker plus manual date input, success modal.
 - Consume page category filter, recent-use strip, and positive-stock-only list.
 - Home action buttons use responsive three-column layout to keep Add / Consume / Edit visible on narrow screens.
+- Phase 2 read paths now use `inventoryRead` cloud function to avoid mini program client `_openid` query errors.
+- Category and Location options/creation now use `taxonomyManage` cloud function, so selection and new category/location are real cloud data.
+- Edit page now uses the same user-facing category/location/date form口径 as Add instead of exposing raw database IDs.
+- `inventoryWrite` now also handles `updateItem` and `updateBatch`; Batch metadata edits recompute reminders server-side.
 
 Not implemented in this phase:
 
@@ -60,7 +64,7 @@ Covered by automation:
 
 ## Phase 1 Regression
 
-Status: PASS by automated tests.
+Status: PASS by automated tests. Additional Phase 2 service/cloud-function integration checks passed by TypeScript build and cloud function syntax checks.
 
 Previously accepted real CloudBase diagnostics remain the latest manual cloud acceptance baseline:
 
@@ -78,14 +82,14 @@ Previously accepted real CloudBase diagnostics remain the latest manual cloud ac
 
 Not executed by Codex in WeChat DevTools during this run. These must be executed by the developer in the simulator or a real device:
 
-- TC-P2-001 首页进入新增物品: PENDING
-- TC-P2-002 首页增加已有物品: PENDING
+- TC-P2-001 首页进入新增物品: NEEDS RETEST after uploading `inventoryRead` and `taxonomyManage`
+- TC-P2-002 首页增加已有物品: NEEDS RETEST
 - TC-P2-003 最近使用快速增加: PENDING
-- TC-P2-004 首页消耗: PENDING
+- TC-P2-004 首页消耗: NEEDS RETEST
 - TC-P2-005 消耗失败提示: PENDING
-- TC-P2-006 编辑 Item 属性: PENDING
-- TC-P2-007 编辑 Batch 属性: PENDING
-- TC-P2-008 编辑数量产生 ADJUST: PENDING
+- TC-P2-006 编辑 Item 属性: NEEDS RETEST
+- TC-P2-007 编辑 Batch 属性: NEEDS RETEST
+- TC-P2-008 编辑数量产生 ADJUST: NEEDS RETEST
 - TC-P2-009 撤销最近操作: BLOCKED by unresolved product rule
 - TC-P2-010 增加页字段分组: PENDING
 - TC-P2-011 单位默认值: PENDING
@@ -108,7 +112,7 @@ Not executed by Codex in WeChat DevTools during this run. These must be executed
 
 ## Known Bugs
 
-None found by automated tests.
+None found by automated tests. User-reported `_openid` invalid key error was addressed by moving Phase 2 inventory reads and taxonomy management to server-side cloud functions.
 
 ## Deferred Tests
 
@@ -129,7 +133,7 @@ Recommendation: do not start Phase 3 until TC-P2-001 through TC-P2-008 and TC-P2
 
 1. Open the repository root in WeChat DevTools.
 2. Confirm `miniprogram/config/env.ts` points to the intended CloudBase environment, or leave it empty and select the environment in DevTools.
-3. Confirm cloud functions `getOpenId` and `inventoryWrite` are deployed.
+3. Confirm cloud functions `getOpenId`, `inventoryWrite`, `inventoryRead`, and `taxonomyManage` are deployed.
 4. Compile and open the home page.
 5. Run TC-P2-001 through TC-P2-008 and TC-P2-010 through TC-P2-022 from `docs/MANUAL_TEST_CASES.md`.
 6. After each write, optionally inspect Cloud Database collections:

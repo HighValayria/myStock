@@ -6,11 +6,13 @@ Source of truth: `docs/INVENTORY_APP_V0.1_DESIGN_FREEZE.md`.
 
 CloudBase database transactions are treated as a server-side capability. The mini program client must not rely on `wx.cloud.database().runTransaction`.
 
-Read path:
+Read path for Phase 2 UI:
 
 ```text
-Page -> Service -> Cloud Repository -> Cloud Database
+Page -> Service -> wx.cloud.callFunction -> inventoryRead Cloud Function -> Cloud Database
 ```
+
+General repository reads can still exist for lower-level infrastructure and tests, but Phase 2 user pages must not issue client-side `_openid` queries.
 
 Write path for core inventory mutations:
 
@@ -23,6 +25,8 @@ Core mutation actions handled by `cloudfunctions/inventoryWrite`:
 - `addStock`
 - `consumeStock`
 - `adjustStock`
+- `updateItem`
+- `updateBatch`
 - `cleanupDevItem` for development diagnostics only
 
 ## Environment ID
@@ -46,7 +50,9 @@ wx.cloud.init({ env: getCloudEnvId(), traceUser: true })
 Required cloud functions:
 
 - `getOpenId`: returns the trusted platform OpenID for current user.
-- `inventoryWrite`: performs core inventory mutations in server-side transactions.
+- `inventoryWrite`: performs core inventory mutations and Phase 2 edit writes in server-side transactions.
+- `inventoryRead`: reads Phase 2 inventory lists and item details using server-side OPENID.
+- `taxonomyManage`: manages Phase 2 category/location defaults, selection data, and user-created category/location records using server-side OPENID.
 - `dbInit`: documents expected collections and recommended indexes; it is intentionally non-destructive.
 
 Deployment note: each cloud function directory includes a deployable `index.js`. In WeChat DevTools, deploy the function folder with `upload and deploy: cloud install dependencies`. Do not deploy only the `.ts` source file.
@@ -93,7 +99,7 @@ Cloud Database permissions must prevent cross-user access. Minimum expectation:
 - A user can create documents scoped to their own identity only through trusted code paths.
 - A user cannot read or update documents owned by another `_openid`.
 
-The Repository layer applies `_openid` filters for reads. The `inventoryWrite` cloud function uses server-side `OPENID` and ignores client-provided user identity.
+The Repository layer applies `_openid` filters for lower-level reads. Phase 2 user-facing reads use `inventoryRead` because the mini program client must not construct `_openid` queries directly. The `inventoryWrite`, `inventoryRead`, and `taxonomyManage` cloud functions use server-side `OPENID` and ignore client-provided user identity.
 
 ## Consistency Guarantees
 

@@ -2,7 +2,7 @@
 
 ## Current Phase
 
-Phase 2 implementation is code-complete for the Add / Consume / Edit user loop. Automated verification passes. WeChat DevTools manual UI acceptance is pending for TC-P2-001 through TC-P2-008 before starting Phase 3.
+Phase 2 implementation is code-complete for the Add / Consume / Edit user loop, including the follow-up fix for cloud read/taxonomy `_openid` errors and Edit page UX alignment. Automated verification passes. WeChat DevTools manual UI acceptance needs retest after uploading `inventoryRead` and `taxonomyManage` before starting Phase 3.
 
 Phase 0 / Phase 1 CloudBase integration remains accepted for continuation, with two-account isolation deferred until a second authorized WeChat developer account is available.
 
@@ -23,11 +23,15 @@ Phase 0 / Phase 1 CloudBase integration remains accepted for continuation, with 
 - Add stock page for new Item and existing Item flows.
 - Consume stock page using service-backed FEFO consume.
 - Edit stock page for Item properties, Batch properties, and explicit ADJUST quantity correction.
-- Phase 2 UI service that routes pages through InventoryService instead of direct database writes.
+- Phase 2 UI service that routes mutation pages through InventoryService/cloud functions and routes Phase 2 reads through `inventoryRead`, avoiding client-side `_openid` query failures.
 - Phase 2 form validation and user-facing error mapping.
 - Phase 2 UI/UX收尾：增加页分组、更多信息折叠、默认单位、分类/位置选择与新建、日期选择、成功后继续添加/回首页。
 - 消耗页支持类别筛选、最近使用和仅展示可用库存。
 - 首页三个核心操作按钮使用响应式三等分布局，避免窄屏溢出。
+- 新增 `inventoryRead` 云函数用于 Phase 2 库存列表/详情读取。
+- 新增 `taxonomyManage` 云函数用于类别/位置默认值、选择和新建。
+- `inventoryWrite` 增加 `updateItem` / `updateBatch`，编辑保存走服务端 OPENID 与事务边界。
+- 编辑页改为类别/位置选择、日期选择和中文业务字段，不再直出 `categoryId` / `locationId`。
 
 ## Automated Verification
 

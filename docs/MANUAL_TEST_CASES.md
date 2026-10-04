@@ -470,6 +470,14 @@ B -1
 
 验证三大核心用户操作可以通过 UI 完整完成。
 
+前置条件：
+
+- 已上传并部署 `cloudfunctions/getOpenId`。
+- 已上传并部署 `cloudfunctions/inventoryWrite`。
+- 已上传并部署 `cloudfunctions/inventoryRead`。
+- 已上传并部署 `cloudfunctions/taxonomyManage`。
+- 已创建 `docs/CLOUDBASE_SETUP.md` 中列出的 8 个集合。
+
 ## TC-P2-001 首页进入新增物品
 
 步骤：
@@ -1829,7 +1837,9 @@ Setup:
 2. Ensure the `cloudfunctions` root has selected the intended cloud environment in WeChat DevTools.
 3. Deploy `cloudfunctions/getOpenId` with `upload and deploy: cloud install dependencies`.
 4. Deploy `cloudfunctions/inventoryWrite` with `upload and deploy: cloud install dependencies`.
-5. Create required collections listed in `docs/CLOUDBASE_SETUP.md`.
+5. Deploy `cloudfunctions/inventoryRead` with `upload and deploy: cloud install dependencies`.
+6. Deploy `cloudfunctions/taxonomyManage` with `upload and deploy: cloud install dependencies`.
+7. Create required collections listed in `docs/CLOUDBASE_SETUP.md`.
 6. Open the page `pages/dev-cloud-check/index` in WeChat DevTools.
 
 Buttons and expected results:

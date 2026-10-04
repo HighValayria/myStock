@@ -114,7 +114,7 @@ Not handled yet:
 
 ## Phase 2: Add / Consume / Edit Complete Loop
 
-Status: Code complete for Phase 2 implementation and UI/UX closeout. Automated tests pass. Manual UI acceptance TC-P2-001 through TC-P2-008 and TC-P2-010 through TC-P2-022 is pending in WeChat DevTools; TC-P2-009 Undo is BLOCKED by unresolved product scope.
+Status: Code complete for Phase 2 implementation, UI/UX closeout, and cloud read/taxonomy fix. Automated tests pass. Manual UI acceptance TC-P2-001 through TC-P2-008 and TC-P2-010 through TC-P2-022 needs retest in WeChat DevTools after deploying `inventoryRead` and `taxonomyManage`; TC-P2-009 Undo is BLOCKED by unresolved product scope.
 
 Goal:
 
@@ -130,6 +130,8 @@ Files:
 - `miniprogram/utils/phase2-form.ts`
 - `miniprogram/services/inventory-service.ts`
 - `cloudfunctions/inventoryWrite/*`
+- `cloudfunctions/inventoryRead/*`
+- `cloudfunctions/taxonomyManage/*`
 - `tests/services/inventory-service.test.ts`
 - `tests/acceptance/scenario-a-to-d.md`
 

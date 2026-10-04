@@ -21,7 +21,7 @@ type TxReason = 'PURCHASE' | 'USED' | 'EXPIRED' | 'DAMAGED' | 'GIFT' | 'MANUAL_C
 type ReminderType = 'EXPIRING' | 'EXPIRED' | 'LOW_STOCK' | 'ZERO_STOCK';
 type ReminderStatus = 'ACTIVE' | 'READ' | 'DISMISSED' | 'RESOLVED';
 
-type MutationAction = 'addStock' | 'consumeStock' | 'adjustStock' | 'cleanupDevItem';
+type MutationAction = 'addStock' | 'consumeStock' | 'adjustStock' | 'updateItem' | 'updateBatch' | 'cleanupDevItem';
 
 interface MutationEvent {
   action: MutationAction;
@@ -136,6 +136,14 @@ function assertPositive(value: unknown, field: string): asserts value is number 
 
 function assertNonNegative(value: unknown, field: string): asserts value is number {
   if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) throw inventoryError('VALIDATION_ERROR', `${field} must be non-negative`);
+}
+
+function compactPatch<T extends Record<string, unknown>>(patch: T): Partial<T> {
+  const output: Partial<T> = {};
+  for (const key of Object.keys(patch) as Array<keyof T>) {
+    if (patch[key] !== undefined) output[key] = patch[key];
+  }
+  return output;
 }
 
 function dateMs(value: string): number {
@@ -528,6 +536,71 @@ async function adjustStock(openid: string, input: any) {
   });
 }
 
+async function updateItem(openid: string, input: any) {
+  assertString(input.itemId, 'itemId');
+  const patch = input.patch || {};
+  if (patch.name !== undefined) assertString(patch.name, 'name');
+  if (patch.categoryId !== undefined) assertString(patch.categoryId, 'categoryId');
+  if (patch.unit !== undefined) assertString(patch.unit, 'unit');
+  if (patch.lowStockThreshold !== undefined && patch.lowStockThreshold !== null) assertNonNegative(patch.lowStockThreshold, 'lowStockThreshold');
+  if (patch.expiryWarningDays !== undefined && patch.expiryWarningDays !== null) assertNonNegative(patch.expiryWarningDays, 'expiryWarningDays');
+  return db.runTransaction(async (tx: any) => {
+    const item = await txGet<ItemDoc>(tx, COLLECTIONS.items, input.itemId, openid);
+    const timestamp = now();
+    const update = compactPatch({
+      name: patch.name === undefined ? undefined : patch.name.trim(),
+      categoryId: patch.categoryId,
+      brand: patch.brand === undefined ? undefined : patch.brand,
+      specification: patch.specification === undefined ? undefined : patch.specification,
+      unit: patch.unit === undefined ? undefined : patch.unit.trim(),
+      defaultLocationId: patch.defaultLocationId === undefined ? undefined : patch.defaultLocationId,
+      lowStockThreshold: patch.lowStockThreshold === undefined ? undefined : patch.lowStockThreshold,
+      expiryWarningDays: patch.expiryWarningDays === undefined ? undefined : patch.expiryWarningDays,
+      barcode: patch.barcode === undefined ? undefined : patch.barcode,
+      note: patch.note === undefined ? undefined : patch.note,
+      updatedAt: timestamp,
+    });
+    await txUpdate(tx, COLLECTIONS.items, item._id, update);
+    const updatedItem = { ...item, ...update };
+    const batches = await listBatchesForItemInTransaction(tx, openid, item._id);
+    await recomputeRemindersInTransaction(tx, openid, updatedItem, batches);
+    return updatedItem;
+  });
+}
+
+async function updateBatch(openid: string, input: any) {
+  assertString(input.batchId, 'batchId');
+  const patch = input.patch || {};
+  if (patch.locationId !== undefined) assertString(patch.locationId, 'locationId');
+  if (patch.expiryDate !== undefined) assertString(patch.expiryDate, 'expiryDate');
+  if (patch.shelfLifeValue !== undefined && patch.shelfLifeValue !== null) assertNonNegative(patch.shelfLifeValue, 'shelfLifeValue');
+  if (patch.purchasePrice !== undefined && patch.purchasePrice !== null) assertNonNegative(patch.purchasePrice, 'purchasePrice');
+  return db.runTransaction(async (tx: any) => {
+    const batch = await txGet<BatchDoc>(tx, COLLECTIONS.batches, input.batchId, openid);
+    const item = await txGet<ItemDoc>(tx, COLLECTIONS.items, batch.itemId, openid);
+    const timestamp = now();
+    const update = compactPatch({
+      locationId: patch.locationId === undefined ? undefined : patch.locationId,
+      purchaseDate: patch.purchaseDate === undefined ? undefined : patch.purchaseDate,
+      productionDate: patch.productionDate === undefined ? undefined : patch.productionDate,
+      shelfLifeValue: patch.shelfLifeValue === undefined ? undefined : patch.shelfLifeValue,
+      shelfLifeUnit: patch.shelfLifeUnit === undefined ? undefined : patch.shelfLifeUnit,
+      expiryDate: patch.expiryDate === undefined ? undefined : patch.expiryDate,
+      purchasePrice: patch.purchasePrice === undefined ? undefined : patch.purchasePrice,
+      purchaseChannel: patch.purchaseChannel === undefined ? undefined : patch.purchaseChannel,
+      openedDate: patch.openedDate === undefined ? undefined : patch.openedDate,
+      openedExpiryDate: patch.openedExpiryDate === undefined ? undefined : patch.openedExpiryDate,
+      note: patch.note === undefined ? undefined : patch.note,
+      updatedAt: timestamp,
+    });
+    await txUpdate(tx, COLLECTIONS.batches, batch._id, update);
+    const batches = await listBatchesForItemInTransaction(tx, openid, item._id);
+    const updatedBatches = batches.map((current) => current._id === batch._id ? { ...current, ...update } : current);
+    await recomputeRemindersInTransaction(tx, openid, item, updatedBatches);
+    return { ...batch, ...update };
+  });
+}
+
 async function cleanupDevItem(openid: string, input: any) {
   assertString(input.itemId, 'itemId');
   const item = await queryOne<ItemDoc>(COLLECTIONS.items, { _id: input.itemId, _openid: openid });
@@ -557,6 +630,8 @@ export async function main(event: MutationEvent) {
     if (event.action === 'addStock') return ok(await addStock(openid, event.payload));
     if (event.action === 'consumeStock') return ok(await consumeStock(openid, event.payload));
     if (event.action === 'adjustStock') return ok(await adjustStock(openid, event.payload));
+    if (event.action === 'updateItem') return ok(await updateItem(openid, event.payload));
+    if (event.action === 'updateBatch') return ok(await updateBatch(openid, event.payload));
     if (event.action === 'cleanupDevItem') return ok(await cleanupDevItem(openid, event.payload));
     throw inventoryError('VALIDATION_ERROR', `Unsupported action: ${event.action}`);
   } catch (error) {
