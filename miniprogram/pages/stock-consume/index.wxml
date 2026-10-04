@@ -28,7 +28,7 @@
 
   <view wx:if="{{detail}}" class="section emphasized">
     <view class="section-title">确认消耗</view>
-    <view class="selected-name">{{detail.item.name}} {{detail.item.specification}}</view>
+    <view class="selected-name">{{selectedItemName}}</view>
     <view class="context">当前库存：{{detail.totalQuantity}}{{detail.item.unit}}</view>
     <view class="context">最近到期：{{nearestExpiryText}}</view>
     <view class="hint">系统将自动按 FEFO 扣减</view>

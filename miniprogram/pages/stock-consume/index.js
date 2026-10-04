@@ -5,6 +5,9 @@ const phase2_form_1 = require("../../utils/phase2-form");
 function getPhase2Service() {
     return require('../../services/phase2-ui-service');
 }
+function itemDisplayName(item) {
+    return `${item.name}${item.specification ? ` ${item.specification}` : ''}`;
+}
 function toPickRow(row) {
     const expiry = row.nearestExpiryDate && row.nearestExpiryDate !== phase2_form_1.UNKNOWN_EXPIRY_DATE ? row.nearestExpiryDate : '无';
     return {
@@ -34,6 +37,7 @@ Page({
         quantity: '',
         note: '',
         detail: null,
+        selectedItemName: '',
         nearestExpiryText: '',
         result: '',
         error: '',
@@ -75,7 +79,7 @@ Page({
     onCategoryChange(event) {
         const index = Number(event.detail.value);
         const category = index === 0 ? null : this.data.categories[index - 1];
-        this.setData({ selectedCategoryId: category?.id ?? '', selectedCategoryName: category?.name ?? '全部', selectedItemId: '', detail: null });
+        this.setData({ selectedCategoryId: category?.id ?? '', selectedCategoryName: category?.name ?? '全部', selectedItemId: '', detail: null, selectedItemName: '', nearestExpiryText: '' });
         void this.loadItems();
     },
     async selectItem(event) {
@@ -86,7 +90,7 @@ Page({
             const detail = await getItemDetail(itemId);
             const nearestExpiry = detail.batches.find((batch) => batch.quantity > 0)?.expiryDate;
             const nearestExpiryText = nearestExpiry && nearestExpiry !== phase2_form_1.UNKNOWN_EXPIRY_DATE ? nearestExpiry : '无';
-            this.setData({ detail, nearestExpiryText });
+            this.setData({ detail, selectedItemName: itemDisplayName(detail.item), nearestExpiryText });
         }
         catch (error) {
             this.setData({ error: (0, phase2_form_1.mapUserError)(error) });
@@ -119,7 +123,7 @@ Page({
             const nearestExpiryText = nearestExpiry && nearestExpiry !== phase2_form_1.UNKNOWN_EXPIRY_DATE ? nearestExpiry : '无';
             const message = `消耗成功：已消耗 ${quantity}${detail.item.unit}，剩余 ${detail.totalQuantity}${detail.item.unit}`;
             wx.showToast({ title: '消耗成功', icon: 'success' });
-            this.setData({ submitting: false, detail, nearestExpiryText, quantity: '', note: '', result: message });
+            this.setData({ submitting: false, detail, selectedItemName: itemDisplayName(detail.item), nearestExpiryText, quantity: '', note: '', result: message });
             void this.loadItems();
         }
         catch (error) {

@@ -30,6 +30,7 @@ interface ConsumeData {
   quantity: string;
   note: string;
   detail: ItemDetail | null;
+  selectedItemName: string;
   nearestExpiryText: string;
   result: string;
   error: string;
@@ -44,6 +45,10 @@ interface ConsumePage {
 
 function getPhase2Service(): typeof import('../../services/phase2-ui-service') {
   return require('../../services/phase2-ui-service') as typeof import('../../services/phase2-ui-service');
+}
+
+function itemDisplayName(item: { name: string; specification?: string | null }): string {
+  return `${item.name}${item.specification ? ` ${item.specification}` : ''}`;
 }
 
 function toPickRow(row: Phase2InventoryRow): PickRow {
@@ -76,6 +81,7 @@ Page({
     quantity: '',
     note: '',
     detail: null,
+    selectedItemName: '',
     nearestExpiryText: '',
     result: '',
     error: '',
@@ -120,7 +126,7 @@ Page({
   onCategoryChange(this: ConsumePage, event: { detail: { value: string } }) {
     const index = Number(event.detail.value);
     const category = index === 0 ? null : this.data.categories[index - 1];
-    this.setData({ selectedCategoryId: category?.id ?? '', selectedCategoryName: category?.name ?? '全部', selectedItemId: '', detail: null });
+    this.setData({ selectedCategoryId: category?.id ?? '', selectedCategoryName: category?.name ?? '全部', selectedItemId: '', detail: null, selectedItemName: '', nearestExpiryText: '' });
     void this.loadItems();
   },
 
@@ -132,7 +138,7 @@ Page({
       const detail = await getItemDetail(itemId);
       const nearestExpiry = detail.batches.find((batch) => batch.quantity > 0)?.expiryDate;
       const nearestExpiryText = nearestExpiry && nearestExpiry !== UNKNOWN_EXPIRY_DATE ? nearestExpiry : '无';
-      this.setData({ detail, nearestExpiryText });
+      this.setData({ detail, selectedItemName: itemDisplayName(detail.item), nearestExpiryText });
     } catch (error) {
       this.setData({ error: mapUserError(error) });
     }
@@ -164,7 +170,7 @@ Page({
       const nearestExpiryText = nearestExpiry && nearestExpiry !== UNKNOWN_EXPIRY_DATE ? nearestExpiry : '无';
       const message = `消耗成功：已消耗 ${quantity}${detail.item.unit}，剩余 ${detail.totalQuantity}${detail.item.unit}`;
       wx.showToast({ title: '消耗成功', icon: 'success' });
-      this.setData({ submitting: false, detail, nearestExpiryText, quantity: '', note: '', result: message });
+      this.setData({ submitting: false, detail, selectedItemName: itemDisplayName(detail.item), nearestExpiryText, quantity: '', note: '', result: message });
       void this.loadItems();
     } catch (error) {
       this.setData({ submitting: false, error: mapUserError(error) });
