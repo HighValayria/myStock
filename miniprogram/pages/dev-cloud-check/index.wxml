@@ -1,5 +1,18 @@
 <view class="page">
   <view class="title">Dev Cloud Check</view>
-  <button class="run-button" type="primary" loading="{{running}}" bindtap="runCloudCheck">Run Cloud Check</button>
+  <view class="subtitle">Phase 0 / Phase 1 CloudBase acceptance</view>
+
+  <button class="run-button" type="primary" loading="{{running}}" bindtap="runCloudCheck">Run Main Chain</button>
+  <button class="run-button" loading="{{running}}" bindtap="runIdempotencyTest">Test Duplicate OperationId</button>
+  <button class="run-button" loading="{{running}}" bindtap="runOverConsumeTest">Test Over Consume</button>
+  <button class="run-button" loading="{{running}}" bindtap="runFefoTest">Test FEFO Multi Batch</button>
+  <button class="run-button" loading="{{running}}" bindtap="runBatchMergeTest">Test Batch Merge Rules</button>
+
+  <view class="section-title">User Isolation Helper</view>
+  <button class="run-button" loading="{{running}}" bindtap="createIsolationData">Create Data Without Cleanup</button>
+  <input class="input" value="{{knownItemId}}" placeholder="Paste known Item ID" bindinput="onKnownItemInput" />
+  <button class="run-button" loading="{{running}}" bindtap="readKnownItem">Read Known Item</button>
+  <button class="run-button" loading="{{running}}" bindtap="cleanupKnownItem">Cleanup Known Item</button>
+
   <text class="output">{{output}}</text>
 </view>

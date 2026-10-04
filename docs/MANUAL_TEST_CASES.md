@@ -1626,10 +1626,12 @@ docs/
 
 ## DEV-CLOUD-001 Developer Diagnostic Page
 
-Purpose: verify the real chain:
+Purpose: verify the real Phase 0 / Phase 1 CloudBase chain from WeChat DevTools. This is a development-only page. It calls `inventoryWrite` directly to avoid Phase 2 UI dependencies; formal product pages should still call Service APIs.
+
+Real chain verified by this page:
 
 ```text
-Mini Program -> Service -> wx.cloud.callFunction -> inventoryWrite -> server-side transaction -> Cloud Database
+Mini Program diagnostic page -> wx.cloud.callFunction -> inventoryWrite -> server-side transaction -> Cloud Database
 ```
 
 Path in WeChat DevTools:
@@ -1638,29 +1640,52 @@ Path in WeChat DevTools:
 pages/dev-cloud-check/index
 ```
 
-Steps:
+Setup:
 
 1. Configure CloudBase environment in `miniprogram/config/env.ts` or keep it empty to use the currently selected DevTools environment.
 2. Ensure the `cloudfunctions` root has selected the intended cloud environment in WeChat DevTools.
 3. Deploy `cloudfunctions/getOpenId` with `upload and deploy: cloud install dependencies`.
 4. Deploy `cloudfunctions/inventoryWrite` with `upload and deploy: cloud install dependencies`.
 5. Create required collections listed in `docs/CLOUDBASE_SETUP.md`.
-5. Open the page `pages/dev-cloud-check/index` in WeChat DevTools.
-6. Click `Run Cloud Check`.
+6. Open the page `pages/dev-cloud-check/index` in WeChat DevTools.
 
-Expected:
+Buttons and expected results:
 
-- Cloud initializes.
-- `getOpenId` returns the current user's openid.
-- The page creates a dev Item through `InventoryService.addStock`, routed to `inventoryWrite`.
-- Output displays the add `operationId`, Item ID, Batch ID, and ADD Transaction ID.
-- The page calls `InventoryService.consumeStock`, routed to `inventoryWrite`.
-- Output displays the consume `operationId`, changed Batch rows, and CONSUME Transaction IDs.
-- The page calls `InventoryService.adjustStock`, routed to `inventoryWrite`.
-- Output displays the adjust `operationId`, target Batch ID, final quantity, and ADJUST Transaction ID.
-- The page queries Batch and Transaction data through the Service / Cloud Repository read path.
-- Batch quantity and Transaction records remain consistent.
-- The cleanup step removes only this run's `dev-cloud-item-*` test data and reports success or a clear failure.
+- `Run Main Chain`
+  - Creates one dev Item, one Batch, ADD / CONSUME / ADJUST Transactions.
+  - Reads back one Batch and three Transactions.
+  - Cleans up the dev-created Item and related data.
+
+- `Test Duplicate OperationId`
+  - Calls `addStock` twice with the same `operationId`.
+  - Expected: one Batch, one Transaction, no double quantity increase.
+
+- `Test Over Consume`
+  - Creates stock quantity 1, then attempts to consume 99.
+  - Expected: consume fails, Batch quantity remains 1, no CONSUME Transaction is created.
+
+- `Test FEFO Multi Batch`
+  - Creates two Batches with different expiry dates, then consumes across both.
+  - Expected: earliest expiry Batch reaches 0 first, later Batch is partially consumed, two CONSUME Transactions are created.
+
+- `Test Batch Merge Rules`
+  - Adds stock twice with same item/location/purchaseDate/expiryDate.
+  - Expected: same batch key merges into one Batch.
+  - Adds stock with a different expiry date.
+  - Expected: different expiry creates a second Batch.
+
+- `Create Data Without Cleanup`
+  - Creates a dev Item and leaves it in Cloud Database for user isolation testing.
+  - Copy the displayed Item ID.
+
+- `Read Known Item`
+  - Reads the Item ID currently in the input box.
+  - For the owner account, expected readable items/batches/transactions are non-zero.
+  - For another WeChat account, expected readable items/batches/transactions are all 0.
+
+- `Cleanup Known Item`
+  - Cleans up the dev Item in the input box.
+  - Must be run by the owner account that created the dev Item.
 
 ## DEV-CLOUD-002 User Isolation Manual Test
 
@@ -1668,32 +1693,39 @@ This must be verified with two real WeChat identities because local automation c
 
 Steps:
 
-1. User A runs `DEV-CLOUD-001` and notes the created Item `_id`.
-2. User B opens the same environment.
-3. User B queries inventory through the dev diagnostic path or a temporary console call using the same Service + Cloud Repository.
-4. User B attempts to query User A's known `_id` via Repository `getById`.
-5. User B attempts to update User A's known `_id` via Repository `update`.
+1. User A opens `pages/dev-cloud-check/index`.
+2. User A clicks `Create Data Without Cleanup` and copies the displayed Item ID.
+3. User B opens the same project and same CloudBase environment.
+4. User B pastes User A's Item ID into the input box.
+5. User B clicks `Read Known Item`.
+6. User A returns, pastes the same Item ID, and clicks `Cleanup Known Item`.
 
 Expected:
 
-- User B list queries do not show User A records.
-- Known `_id` read returns empty / not found.
-- Known `_id` update returns not found or permission failure.
-- No User A data is modified.
+- User B output shows `Readable items: 0`, `Readable batches: 0`, and `Readable transactions: 0`.
+- User B cannot clean up User A data; cleanup should fail or remove nothing.
+- User A can clean up the dev-created data successfully.
+- No User A data is modified by User B.
 
 ## DEV-CLOUD-003 Transaction Runtime Capability
 
 Steps:
 
-1. In WeChat DevTools, run `DEV-CLOUD-001`.
-2. Observe whether `addStock`, `consumeStock`, and `adjustStock` complete through `inventoryWrite`.
-3. Inspect Cloud Database for matching Batch and Transaction records.
-4. Retry the same operation with the same `operationId` from a temporary console call or a controlled diagnostic edit.
+1. In WeChat DevTools, run these buttons:
+   - `Run Main Chain`
+   - `Test Duplicate OperationId`
+   - `Test Over Consume`
+   - `Test FEFO Multi Batch`
+   - `Test Batch Merge Rules`
+2. Inspect the output for `PASS` lines.
+3. Optionally inspect Cloud Database while a non-cleaned isolation item exists.
 
 Expected:
 
 - The mini program client does not call `wx.cloud.database().runTransaction`.
 - `inventoryWrite` uses CloudBase Node SDK server-side transaction support.
 - Batch changes and Transaction creation commit together.
-- If Transaction creation fails, Batch changes roll back.
-- Retrying the same `operationId` returns the existing Transaction result and does not change stock twice.
+- If consume fails, Batch quantity remains unchanged and no CONSUME Transaction is created.
+- Retrying the same `operationId` returns the existing result and does not change stock twice.
+- FEFO consumes earliest expiry first.
+- Same batch key merges; different expiry does not merge.

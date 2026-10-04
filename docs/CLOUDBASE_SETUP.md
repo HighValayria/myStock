@@ -120,12 +120,14 @@ Use the temporary development-only page:
 pages/dev-cloud-check/index
 ```
 
-It verifies:
+It verifies the CloudBase path directly through `wx.cloud.callFunction` so Phase 0 / Phase 1 can be accepted before Phase 2 pages exist:
 
 - Cloud initialization.
 - Current OpenID via `getOpenId`.
-- `InventoryService.addStock` -> `inventoryWrite` -> server transaction.
-- `InventoryService.consumeStock` -> `inventoryWrite` -> server transaction.
-- `InventoryService.adjustStock` -> `inventoryWrite` -> server transaction.
-- Cloud Repository readback for Batch and Transaction state.
-- Safe cleanup of the dev-created `dev-cloud-item-*` record.
+- Main add / consume / adjust chain through `inventoryWrite` server transactions.
+- Duplicate `operationId` idempotency.
+- Over-consume failure without Batch / Transaction half writes.
+- Multi-batch FEFO deduction.
+- Same-batch merge and different-expiry no-merge rules.
+- User isolation helper: create retained dev data, read known Item ID from another account, owner cleanup.
+- Safe cleanup of dev-created `dev-cloud-item-*` records.
