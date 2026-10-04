@@ -1,5 +1,5 @@
 <view class="page">
   <view class="title">Dev Cloud Check</view>
-  <button type="primary" loading="{{running}}" bindtap="runCloudCheck">Run Cloud Check</button>
+  <button class="run-button" type="primary" loading="{{running}}" bindtap="runCloudCheck">Run Cloud Check</button>
   <text class="output">{{output}}</text>
 </view>
