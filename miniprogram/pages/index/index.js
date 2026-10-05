@@ -24,7 +24,7 @@ Page({
             const recentRows = rows.slice(0, 5).map((row) => ({
                 id: row.item._id,
                 name: `${row.item.name}${row.item.specification ? ` ${row.item.specification}` : ''}`,
-                summary: `${row.totalQuantity}${row.item.unit}${row.nearestExpiryDate ? ` · 最近到期 ${row.nearestExpiryDate}` : ''}`,
+                summary: `${row.totalQuantity}${row.item.unit}${row.nearestExpiryDate && row.nearestExpiryDate !== phase2_form_1.UNKNOWN_EXPIRY_DATE ? ` · 最近到期 ${row.nearestExpiryDate}` : ''}`,
             }));
             this.setData({
                 loading: false,

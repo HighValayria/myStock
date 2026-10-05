@@ -397,6 +397,7 @@ Page({
         productionDate,
         shelfLifeValue,
         shelfLifeUnit: shelfLifeValue == null ? null : form.shelfLifeUnit,
+        allowUnknown: true,
       });
       await getPhase2Service().updateBatch(form.batchId, {
         locationId: form.locationId || firstOrEmpty(this.data.locations),

@@ -1,7 +1,7 @@
 /// <reference path="../../types/wechat.d.ts" />
 
 import type { Phase2InventoryRow } from '../../services/phase2-ui-service';
-import { mapUserError } from '../../utils/phase2-form';
+import { UNKNOWN_EXPIRY_DATE, mapUserError } from '../../utils/phase2-form';
 
 interface HomeData {
   loading: boolean;
@@ -41,7 +41,7 @@ Page({
       const recentRows = rows.slice(0, 5).map((row: Phase2InventoryRow) => ({
         id: row.item._id,
         name: `${row.item.name}${row.item.specification ? ` ${row.item.specification}` : ''}`,
-        summary: `${row.totalQuantity}${row.item.unit}${row.nearestExpiryDate ? ` · 最近到期 ${row.nearestExpiryDate}` : ''}`,
+        summary: `${row.totalQuantity}${row.item.unit}${row.nearestExpiryDate && row.nearestExpiryDate !== UNKNOWN_EXPIRY_DATE ? ` · 最近到期 ${row.nearestExpiryDate}` : ''}`,
       }));
       this.setData({
         loading: false,
