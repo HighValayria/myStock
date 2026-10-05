@@ -30,7 +30,7 @@ Can defer to Phase 4. Current proposed implementation remains: use ZERO_STOCK Re
 
 Phase 2 UX requires the quick path “name + quantity” to save without forcing production date or expiry date. The current V0.1 schema requires `Batch.expiryDate`.
 
-Current engineering stance: Phase 2 stores `9999-12-31` as a temporary compatibility value when the user leaves expiry information blank. This keeps existing schema and FEFO machinery running, but the product should later explicitly define an “unknown / not applicable expiry” representation.
+Current engineering stance: Phase 2 stores `9999-12-31` as a temporary compatibility value when the user leaves expiry information blank. Phase 3 hides this compatibility value in Home, Inventory, and Detail UI and sorts it after real expiry dates. This keeps existing schema and FEFO machinery running, but the product should later explicitly define an “unknown / not applicable expiry” representation.
 
 ### Q4: Standard Excel Template
 

@@ -185,20 +185,27 @@ Not handled yet:
 
 ## Phase 3: Home and Inventory Browsing
 
+Status: Code complete for formal Home, inventory browsing, list/table modes, item detail, and detail-to-Phase-2 operation entry points. Automated tests pass; manual UI acceptance TC-P3-001 through TC-P3-018 remains pending in WeChat DevTools after deploying the updated `inventoryRead` cloud function.
+
 Goal:
 
 - Make the product usable for everyday lookup: Home summary, background inventory flow, inventory list, filters, sorting, list/table mode.
 
 Files:
 
-- `miniprogram/pages/home/*`
+- `miniprogram/pages/index/*`
 - `miniprogram/pages/inventory/*`
-- `miniprogram/components/inventory-card/*`
-- `miniprogram/components/stock-status-tag/*`
-- `miniprogram/components/expiry-status-tag/*`
-- `miniprogram/services/inventory-service.ts`
-- `miniprogram/utils/storage-cache.ts`
-
+- `miniprogram/pages/item-detail/*`
+- `miniprogram/pages/stock-add/*`
+- `miniprogram/pages/stock-consume/*`
+- `miniprogram/pages/stock-edit/*`
+- `miniprogram/pages/analysis/*` placeholder only
+- `miniprogram/pages/reminders/*` placeholder only
+- `miniprogram/pages/settings/*` placeholder only
+- `miniprogram/services/phase2-ui-service.ts`
+- `miniprogram/utils/phase3-view.ts`
+- `cloudfunctions/inventoryRead/*`
+- `tests/run-tests.ts`
 Data changes:
 
 - No new master collections.

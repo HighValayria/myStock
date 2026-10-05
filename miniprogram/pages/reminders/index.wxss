@@ -1,0 +1,3 @@
+.placeholder { min-height: 100vh; padding: 56rpx 36rpx; box-sizing: border-box; background: #f7f7f2; color: #1f2933; }
+.title { font-size: 42rpx; font-weight: 700; margin-bottom: 18rpx; }
+.text { color: #667085; font-size: 28rpx; }

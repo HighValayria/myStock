@@ -103,9 +103,11 @@ Page({
         emptyItems: false,
         emptyBatches: false,
     },
-    onLoad() {
-        void this.loadTaxonomy();
-        void this.loadItems();
+    onLoad(options) {
+        void Promise.all([this.loadTaxonomy(), this.loadItems()]).then(() => {
+            if (options.itemId)
+                void this.selectItemById(options.itemId);
+        });
     },
     async loadTaxonomy() {
         try {
@@ -161,8 +163,7 @@ Page({
         this.setData({ search: event.detail.value });
         void this.loadItems();
     },
-    async selectItem(event) {
-        const itemId = event.currentTarget.dataset.id;
+    async selectItemById(itemId) {
         this.setData({ selectedItemId: itemId, result: '', error: '', batchForm: null, adjustForm: null });
         this.setData({ items: this.data.items.map((item) => ({ ...item, selectedClass: item.id === itemId ? 'selected' : '' })) });
         try {
@@ -171,6 +172,9 @@ Page({
         catch (error) {
             this.setData({ error: (0, phase2_form_1.mapUserError)(error) });
         }
+    },
+    async selectItem(event) {
+        await this.selectItemById(event.currentTarget.dataset.id);
     },
     onItemFieldInput(event) {
         const field = event.currentTarget.dataset.field;

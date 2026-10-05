@@ -42,9 +42,11 @@ Page({
         result: '',
         error: '',
     },
-    onLoad() {
-        void this.loadCategories();
-        void this.loadItems();
+    onLoad(options) {
+        void Promise.all([this.loadCategories(), this.loadItems()]).then(() => {
+            if (options.itemId)
+                void this.selectItemById(options.itemId);
+        });
     },
     async loadCategories() {
         try {
@@ -82,8 +84,7 @@ Page({
         this.setData({ selectedCategoryId: category?.id ?? '', selectedCategoryName: category?.name ?? '全部', selectedItemId: '', detail: null, selectedItemName: '', nearestExpiryText: '' });
         void this.loadItems();
     },
-    async selectItem(event) {
-        const itemId = event.currentTarget.dataset.id;
+    async selectItemById(itemId) {
         this.setData({ selectedItemId: itemId, result: '', error: '' });
         try {
             const { getItemDetail } = getPhase2Service();
@@ -95,6 +96,9 @@ Page({
         catch (error) {
             this.setData({ error: (0, phase2_form_1.mapUserError)(error) });
         }
+    },
+    async selectItem(event) {
+        await this.selectItemById(event.currentTarget.dataset.id);
     },
     onFieldInput(event) {
         const field = event.currentTarget.dataset.field;

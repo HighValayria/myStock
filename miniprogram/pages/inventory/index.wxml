@@ -1,0 +1,59 @@
+<scroll-view class="page" scroll-y refresher-enabled bindrefresherrefresh="loadRows">
+  <view class="header">
+    <view>
+      <view class="title">库存一览</view>
+      <view class="subtitle">按物品查看，批次与流水保留在详情中</view>
+    </view>
+    <button class="add-button" bindtap="goAdd">增加</button>
+  </view>
+
+  <view class="toolbar">
+    <input class="search" placeholder="搜索物品或品牌" value="{{search}}" bindinput="onSearchInput" />
+    <view class="filter-grid">
+      <picker mode="selector" range="{{categoryNames}}" bindchange="onCategoryChange"><view class="filter">{{selectedCategoryName}}</view></picker>
+      <picker mode="selector" range="{{locationNames}}" bindchange="onLocationChange"><view class="filter">{{selectedLocationName}}</view></picker>
+      <picker mode="selector" range="{{expiryStatusNames}}" bindchange="onExpiryStatusChange"><view class="filter">{{selectedExpiryStatusName}}</view></picker>
+      <picker mode="selector" range="{{stockStatusNames}}" bindchange="onStockStatusChange"><view class="filter">{{selectedStockStatusName}}</view></picker>
+    </view>
+    <view class="mode-row">
+      <picker mode="selector" range="{{sortNames}}" bindchange="onSortChange"><view class="sort">排序：{{selectedSortName}}</view></picker>
+      <view class="segments">
+        <button size="mini" class="segment {{viewMode === 'list' ? 'active' : ''}}" bindtap="setListMode">列表</button>
+        <button size="mini" class="segment {{viewMode === 'table' ? 'active' : ''}}" bindtap="setTableMode">表格</button>
+      </view>
+    </view>
+  </view>
+
+  <view wx:if="{{error}}" class="error-block">
+    <view>库存加载失败</view>
+    <view class="error-detail">{{error}}</view>
+    <button size="mini" bindtap="loadRows">重新加载</button>
+  </view>
+  <view wx:if="{{loading}}" class="muted">库存加载中...</view>
+  <view wx:if="{{emptyRows && !loading}}" class="empty">没有匹配的库存</view>
+
+  <view wx:if="{{viewMode === 'list'}}" class="list">
+    <view wx:for="{{rows}}" wx:key="id" class="inventory-row" data-id="{{item.id}}" bindtap="openDetail">
+      <view class="row-main">
+        <view class="item-title">{{item.name}} <text wx:if="{{item.specification}}" class="spec">{{item.specification}}</text></view>
+        <view class="quantity">{{item.quantityText}}</view>
+      </view>
+      <view class="meta">{{item.locationText}} · 最近到期 {{item.expiryText}}</view>
+      <view class="badges">
+        <text class="badge {{item.expiryClass}}">{{item.expiryStatusText}}</text>
+        <text class="badge {{item.stockClass}}">{{item.stockStatusText}}</text>
+      </view>
+    </view>
+  </view>
+
+  <scroll-view wx:if="{{viewMode === 'table'}}" scroll-x class="table-scroll">
+    <view class="table">
+      <view class="tr th">
+        <view class="td name-col">物品名称</view><view class="td spec-col">规格</view><view class="td qty-col">数量</view><view class="td unit-col">单位</view><view class="td loc-col">存放位置</view><view class="td date-col">最近到期</view><view class="td days-col">剩余天数</view><view class="td status-col">保质期</view><view class="td status-col">库存</view>
+      </view>
+      <view wx:for="{{rows}}" wx:key="id" class="tr" data-id="{{item.id}}" bindtap="openDetail">
+        <view class="td name-col">{{item.name}}</view><view class="td spec-col">{{item.specification}}</view><view class="td qty-col">{{item.quantityText}}</view><view class="td unit-col">{{item.unit}}</view><view class="td loc-col">{{item.locationText}}</view><view class="td date-col">{{item.expiryText}}</view><view class="td days-col">{{item.remainingText}}</view><view class="td status-col">{{item.expiryStatusText}}</view><view class="td status-col">{{item.stockStatusText}}</view>
+      </view>
+    </view>
+  </scroll-view>
+</scroll-view>

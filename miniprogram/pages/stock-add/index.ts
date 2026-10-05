@@ -89,6 +89,7 @@ interface AddPage {
   refreshExpiryPreview(): void;
   resetForContinue(): void;
   showSuccessModal(content: string): void;
+  selectItemById(itemId: string): void;
 }
 
 const defaultForm: AddForm = {
@@ -185,9 +186,10 @@ Page({
     directExpiryActive: false,
   } as AddData,
 
-  onLoad(this: AddPage) {
-    void this.loadTaxonomy();
-    void this.loadItems();
+  onLoad(this: AddPage, options: { itemId?: string }) {
+    void Promise.all([this.loadTaxonomy(), this.loadItems()]).then(() => {
+      if (options.itemId) this.selectItemById(options.itemId);
+    });
   },
 
   async loadTaxonomy(this: AddPage) {
@@ -268,6 +270,25 @@ Page({
   onSearchInput(this: AddPage, event: { detail: { value: string } }) {
     this.setData({ search: event.detail.value });
     void this.loadItems();
+  },
+
+  selectItemById(this: AddPage, itemId: string) {
+    const selected = this.data.items.find((item) => item.id === itemId);
+    if (!selected) return;
+    const locationId = selected.defaultLocationId || this.data.form.locationId;
+    const location = this.data.locations.find((item) => item.id === locationId);
+    this.setData({
+      mode: 'existing',
+      selectedItemId: selected.id,
+      selectedItemName: selected.name,
+      selectedLocationName: location?.label ?? this.data.selectedLocationName,
+      ...modeFlags('existing', selected.id),
+      form: {
+        ...this.data.form,
+        unit: selected.unit || DEFAULT_UNIT,
+        locationId,
+      },
+    });
   },
 
   selectItem(this: AddPage, event: { currentTarget: { dataset: { id: string } } }) {

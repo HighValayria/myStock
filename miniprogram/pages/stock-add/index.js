@@ -92,9 +92,11 @@ Page({
         expectedExpiryText: '未填写时将按未知到期处理',
         directExpiryActive: false,
     },
-    onLoad() {
-        void this.loadTaxonomy();
-        void this.loadItems();
+    onLoad(options) {
+        void Promise.all([this.loadTaxonomy(), this.loadItems()]).then(() => {
+            if (options.itemId)
+                this.selectItemById(options.itemId);
+        });
     },
     async loadTaxonomy() {
         try {
@@ -170,6 +172,25 @@ Page({
     onSearchInput(event) {
         this.setData({ search: event.detail.value });
         void this.loadItems();
+    },
+    selectItemById(itemId) {
+        const selected = this.data.items.find((item) => item.id === itemId);
+        if (!selected)
+            return;
+        const locationId = selected.defaultLocationId || this.data.form.locationId;
+        const location = this.data.locations.find((item) => item.id === locationId);
+        this.setData({
+            mode: 'existing',
+            selectedItemId: selected.id,
+            selectedItemName: selected.name,
+            selectedLocationName: location?.label ?? this.data.selectedLocationName,
+            ...modeFlags('existing', selected.id),
+            form: {
+                ...this.data.form,
+                unit: selected.unit || phase2_form_1.DEFAULT_UNIT,
+                locationId,
+            },
+        });
     },
     selectItem(event) {
         const selected = this.data.items.find((item) => item.id === event.currentTarget.dataset.id);

@@ -4,6 +4,7 @@ import type { InventoryMutationClient } from '../miniprogram/services';
 import { InventoryError } from '../miniprogram/utils/errors';
 import { resetIdSequenceForTests } from '../miniprogram/utils/id';
 import { DEFAULT_UNIT, UNKNOWN_EXPIRY_DATE, calculateExpiryDateFromShelfLife, parseNonNegativeNumber, parsePositiveNumber, resolveExpiryDate } from '../miniprogram/utils/phase2-form';
+import { expiryStatusLabel, formatRemainingDays, transactionQuantityText, transactionTypeLabel, visibleExpiryDate } from '../miniprogram/utils/phase3-view';
 import type { AddStockInput, CreateItemInput } from '../miniprogram/models';
 
 interface TestContext {
@@ -254,6 +255,15 @@ const tests: Array<[string, () => Promise<void>]> = [
     assertEqual(readByOther, null, 'other user cannot read known item id');
     await assertRejects(() => repos.items.update(otherUser, added.item._id, { note: 'hacked' }), 'NOT_FOUND', 'other user cannot update known item id');
   }],
+  ['phase 3 view helpers keep derived states display-only and localized', async () => {
+    assertEqual(expiryStatusLabel('EXPIRING'), '临期', 'expiry status label');
+    assertEqual(formatRemainingDays(null), '未知', 'unknown remaining days');
+    assertEqual(formatRemainingDays(-2), '已过期 2 天', 'expired remaining days');
+    assertEqual(visibleExpiryDate(UNKNOWN_EXPIRY_DATE), '无到期日', 'unknown expiry is hidden from users');
+    assertEqual(transactionTypeLabel('ADJUST'), '库存修正', 'transaction type label');
+    assertEqual(transactionQuantityText({ quantity: -2 } as never, '盒'), '-2盒', 'transaction quantity text');
+  }],
+
   ['phase 2 form helpers validate expiry and adjustment inputs', async () => {
     assertEqual(resolveExpiryDate({ expiryDate: '2026-10-20' }), '2026-10-20', 'direct expiry date');
     assertEqual(

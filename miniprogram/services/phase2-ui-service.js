@@ -1,17 +1,18 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.adjustStock = adjustStock;
+exports.updateItem = updateItem;
+exports.updateBatch = updateBatch;
 exports.getPhase2Context = getPhase2Context;
 exports.resetPhase2ContextForTests = resetPhase2ContextForTests;
 exports.getTaxonomyOptions = getTaxonomyOptions;
 exports.createCategory = createCategory;
 exports.createLocation = createLocation;
 exports.listInventoryRows = listInventoryRows;
+exports.getHomeDashboard = getHomeDashboard;
 exports.getItemDetail = getItemDetail;
 exports.addStock = addStock;
 exports.consumeStock = consumeStock;
-exports.adjustStock = adjustStock;
-exports.updateItem = updateItem;
-exports.updateBatch = updateBatch;
 const cloud_1 = require("../config/cloud");
 const index_1 = require("../repositories/index");
 const inventory_service_1 = require("./inventory-service");
@@ -71,7 +72,16 @@ async function listInventoryRows(options = {}) {
         search: options.search?.trim() || '',
         positiveOnly: Boolean(options.positiveOnly),
         categoryId: options.categoryId || '',
+        locationId: options.locationId || '',
+        expiryStatus: options.expiryStatus || '',
+        stockStatus: options.stockStatus || '',
+        sortBy: options.sortBy || 'nearestExpiry',
+        limit: options.limit,
+        offset: options.offset || 0,
     });
+}
+async function getHomeDashboard() {
+    return callCloudFunction('inventoryRead', 'getHomeDashboard');
 }
 async function getItemDetail(itemId) {
     return callCloudFunction('inventoryRead', 'getItemDetail', { itemId });

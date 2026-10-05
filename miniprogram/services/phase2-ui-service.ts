@@ -1,5 +1,5 @@
 import { initCloud } from '../config/cloud';
-import type { AddStockInput, AdjustStockInput, ConsumeStockInput, InventoryListItem, ItemDetail, UpdateBatchInput, UpdateItemInput } from '../models';
+import type { AddStockInput, AdjustStockInput, Batch, ConsumeStockInput, ExpiryStatus, InventoryListItem, ItemDetail, StockStatus, Transaction, UpdateBatchInput, UpdateItemInput } from '../models';
 import { createRepositories, type InventoryRepositories } from '../repositories/index';
 import { InventoryService } from './inventory-service';
 import { CloudFunctionInventoryMutationClient } from './inventory-mutation-client';
@@ -25,7 +25,16 @@ export interface Phase2Context {
 
 export interface Phase2InventoryRow extends InventoryListItem {
   recentAt: number;
+  recentAddAt?: number;
+  recentConsumeAt?: number;
   label: string;
+  expiryStatuses?: ExpiryStatus[];
+  batchCount?: number;
+  positiveBatchCount?: number;
+  locationIds?: string[];
+  locationSummary?: string;
+  activeReminderTypes?: string[];
+  restockNeeded?: boolean;
 }
 
 export interface Phase2CategoryOption {
@@ -43,6 +52,47 @@ export interface Phase2LocationOption {
 export interface Phase2TaxonomyOptions {
   categories: Phase2CategoryOption[];
   locations: Phase2LocationOption[];
+}
+
+export interface Phase3InventoryQuery {
+  search?: string;
+  positiveOnly?: boolean;
+  categoryId?: string;
+  locationId?: string;
+  expiryStatus?: '' | ExpiryStatus;
+  stockStatus?: '' | StockStatus;
+  sortBy?: 'nearestExpiry' | 'remainingDays' | 'quantity' | 'recentAdd' | 'recentConsume' | 'name';
+  limit?: number;
+  offset?: number;
+}
+
+export interface Phase3HomeDashboard {
+  summary: {
+    itemCount: number;
+    batchCount: number;
+    expiringCount: number;
+    expiredCount: number;
+    lowStockCount: number;
+    zeroStockCount: number;
+    restockCount: number;
+  };
+  alertLines: string[];
+  backgroundFacts: Array<{ itemId: string; text: string; lane: number }>;
+}
+
+export interface Phase3Batch extends Batch {
+  effectiveExpiryDate?: string;
+  remainingDays: number;
+  expiryStatus: ExpiryStatus;
+  locationLabel?: string;
+}
+
+export interface Phase3ItemDetail extends Omit<ItemDetail, 'batches' | 'recentTransactions'> {
+  categoryName?: string;
+  defaultLocationLabel?: string;
+  batches: Phase3Batch[];
+  recentTransactions: Transaction[];
+  locationLabels?: Record<string, string>;
 }
 
 let cachedContext: Phase2Context | null = null;
@@ -99,16 +149,26 @@ export async function createLocation(name: string): Promise<Phase2LocationOption
   return callCloudFunction<Phase2LocationOption>('taxonomyManage', 'createLocation', { name });
 }
 
-export async function listInventoryRows(options: { search?: string; positiveOnly?: boolean; categoryId?: string } = {}): Promise<Phase2InventoryRow[]> {
+export async function listInventoryRows(options: Phase3InventoryQuery = {}): Promise<Phase2InventoryRow[]> {
   return callCloudFunction<Phase2InventoryRow[]>('inventoryRead', 'listInventoryRows', {
     search: options.search?.trim() || '',
     positiveOnly: Boolean(options.positiveOnly),
     categoryId: options.categoryId || '',
+    locationId: options.locationId || '',
+    expiryStatus: options.expiryStatus || '',
+    stockStatus: options.stockStatus || '',
+    sortBy: options.sortBy || 'nearestExpiry',
+    limit: options.limit,
+    offset: options.offset || 0,
   });
 }
 
-export async function getItemDetail(itemId: string): Promise<ItemDetail> {
-  return callCloudFunction<ItemDetail>('inventoryRead', 'getItemDetail', { itemId });
+export async function getHomeDashboard(): Promise<Phase3HomeDashboard> {
+  return callCloudFunction<Phase3HomeDashboard>('inventoryRead', 'getHomeDashboard');
+}
+
+export async function getItemDetail(itemId: string): Promise<Phase3ItemDetail> {
+  return callCloudFunction<Phase3ItemDetail>('inventoryRead', 'getItemDetail', { itemId });
 }
 
 export async function addStock(input: AddStockInput) {

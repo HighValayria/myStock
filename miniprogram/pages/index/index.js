@@ -2,16 +2,26 @@
 /// <reference path="../../types/wechat.d.ts" />
 Object.defineProperty(exports, "__esModule", { value: true });
 const phase2_form_1 = require("../../utils/phase2-form");
+const emptySummary = {
+    itemCount: 0,
+    batchCount: 0,
+    expiringCount: 0,
+    expiredCount: 0,
+    lowStockCount: 0,
+    zeroStockCount: 0,
+    restockCount: 0,
+};
 function getPhase2Service() {
     return require('../../services/phase2-ui-service');
 }
 Page({
     data: {
         loading: false,
-        itemCount: 0,
-        batchHint: '打开后可增加、消耗、编辑库存',
         error: '',
-        recentRows: [],
+        summary: { ...emptySummary },
+        alertLines: [],
+        backgroundFacts: [],
+        emptyInventory: false,
     },
     onShow() {
         void this.loadSummary();
@@ -19,25 +29,28 @@ Page({
     async loadSummary() {
         this.setData({ loading: true, error: '' });
         try {
-            const { listInventoryRows } = getPhase2Service();
-            const rows = await listInventoryRows();
-            const recentRows = rows.slice(0, 5).map((row) => ({
-                id: row.item._id,
-                name: `${row.item.name}${row.item.specification ? ` ${row.item.specification}` : ''}`,
-                summary: `${row.totalQuantity}${row.item.unit}${row.nearestExpiryDate && row.nearestExpiryDate !== phase2_form_1.UNKNOWN_EXPIRY_DATE ? ` · 最近到期 ${row.nearestExpiryDate}` : ''}`,
-            }));
+            const { getHomeDashboard } = getPhase2Service();
+            const dashboard = await getHomeDashboard();
             this.setData({
                 loading: false,
-                itemCount: rows.length,
-                batchHint: rows.length ? '最近操作物品会优先出现在选择列表' : '还没有库存，先增加一个物品',
-                recentRows,
+                summary: dashboard.summary,
+                alertLines: dashboard.alertLines,
+                backgroundFacts: dashboard.backgroundFacts,
+                emptyInventory: dashboard.summary.itemCount === 0,
             });
         }
         catch (error) {
             this.setData({ loading: false, error: (0, phase2_form_1.mapUserError)(error) });
         }
     },
+    openFact(event) {
+        const itemId = event.currentTarget.dataset.id;
+        if (!itemId)
+            return;
+        wx.navigateTo({ url: `/pages/item-detail/index?itemId=${itemId}` });
+    },
     goAdd() { wx.navigateTo({ url: '/pages/stock-add/index' }); },
     goConsume() { wx.navigateTo({ url: '/pages/stock-consume/index' }); },
     goEdit() { wx.navigateTo({ url: '/pages/stock-edit/index' }); },
+    goInventory() { wx.switchTab ? wx.switchTab({ url: '/pages/inventory/index' }) : wx.navigateTo({ url: '/pages/inventory/index' }); },
 });

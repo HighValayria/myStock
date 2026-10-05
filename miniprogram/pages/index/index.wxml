@@ -1,28 +1,54 @@
-<view class="page">
-  <view class="header">
-    <view class="title">我的库存</view>
-    <view class="subtitle">{{batchHint}}</view>
+<scroll-view class="page" scroll-y>
+  <view class="hero">
+    <view>
+      <view class="eyebrow">个人库存账本</view>
+      <view class="title">有备录</view>
+    </view>
+    <button class="ghost-button" bindtap="goInventory">库存一览</button>
   </view>
 
-  <view class="summary">
-    <view class="summary-number">{{itemCount}}</view>
-    <view class="summary-label">种物品</view>
+  <view wx:if="{{error}}" class="error-block">
+    <view>首页加载失败</view>
+    <view class="error-detail">{{error}}</view>
+    <button size="mini" bindtap="loadSummary">重新加载</button>
+  </view>
+
+  <view wx:if="{{loading}}" class="muted">库存加载中...</view>
+
+  <view class="alert-panel">
+    <view class="panel-title">重要提醒</view>
+    <view wx:for="{{alertLines}}" wx:key="*this" class="alert-line">{{item}}</view>
+  </view>
+
+  <view class="flow-field">
+    <view wx:if="{{emptyInventory && !loading}}" class="empty-flow">暂无库存，点击“增加”记录第一件物品</view>
+    <view wx:for="{{backgroundFacts}}" wx:key="itemId" class="flow-line lane-{{item.lane}}" data-id="{{item.itemId}}" bindtap="openFact">
+      {{item.text}}
+    </view>
   </view>
 
   <view class="actions">
-    <button class="action add" bindtap="goAdd">+ 增加</button>
-    <button class="action consume" bindtap="goConsume">- 消耗</button>
-    <button class="action edit" bindtap="goEdit">✎ 编辑</button>
+    <button class="action add" bindtap="goAdd">＋增加</button>
+    <button class="action consume" bindtap="goConsume">－消耗</button>
+    <button class="action edit" bindtap="goEdit">编辑</button>
   </view>
 
-  <view wx:if="{{error}}" class="error">{{error}}</view>
-  <button wx:if="{{error}}" class="retry" bindtap="loadSummary">重新加载</button>
-  <view wx:if="{{loading}}" class="muted">加载中...</view>
-
-  <view class="section-title">最近使用</view>
-  <view wx:if="{{!recentRows.length && !loading}}" class="empty">暂无最近使用物品</view>
-  <view wx:for="{{recentRows}}" wx:key="id" class="recent-row">
-    <view class="recent-name">{{item.name}}</view>
-    <view class="recent-summary">{{item.summary}}</view>
+  <view class="summary-strip">
+    <view class="summary-item">
+      <view class="summary-number">{{summary.itemCount}}</view>
+      <view class="summary-label">种物品</view>
+    </view>
+    <view class="summary-item">
+      <view class="summary-number">{{summary.expiringCount}}</view>
+      <view class="summary-label">临期</view>
+    </view>
+    <view class="summary-item">
+      <view class="summary-number">{{summary.restockCount}}</view>
+      <view class="summary-label">待补货</view>
+    </view>
+    <view class="summary-item subtle">
+      <view class="summary-number">{{summary.batchCount}}</view>
+      <view class="summary-label">批次</view>
+    </view>
   </view>
-</view>
+</scroll-view>

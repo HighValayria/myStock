@@ -1,16 +1,34 @@
 {
   "pages": [
     "pages/index/index",
+    "pages/inventory/index",
+    "pages/item-detail/index",
     "pages/stock-add/index",
     "pages/stock-consume/index",
     "pages/stock-edit/index",
+    "pages/analysis/index",
+    "pages/reminders/index",
+    "pages/settings/index",
     "pages/dev-cloud-check/index",
     "pages/logs/logs"
   ],
   "window": {
     "navigationBarTextStyle": "black",
-    "navigationBarTitleText": "我的库存",
+    "navigationBarTitleText": "有备录",
     "navigationBarBackgroundColor": "#ffffff"
+  },
+  "tabBar": {
+    "color": "#667085",
+    "selectedColor": "#1677ff",
+    "backgroundColor": "#ffffff",
+    "borderStyle": "white",
+    "list": [
+      { "pagePath": "pages/index/index", "text": "首页" },
+      { "pagePath": "pages/inventory/index", "text": "库存" },
+      { "pagePath": "pages/analysis/index", "text": "分析" },
+      { "pagePath": "pages/reminders/index", "text": "提醒" },
+      { "pagePath": "pages/settings/index", "text": "设置" }
+    ]
   },
   "style": "v2",
   "componentFramework": "glass-easel",

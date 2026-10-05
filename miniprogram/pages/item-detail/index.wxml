@@ -1,0 +1,50 @@
+<scroll-view class="page" scroll-y>
+  <view wx:if="{{loading}}" class="muted">详情加载中...</view>
+  <view wx:if="{{error}}" class="error-block">
+    <view>详情加载失败</view>
+    <view class="error-detail">{{error}}</view>
+    <button size="mini" bindtap="loadDetail">重新加载</button>
+  </view>
+
+  <view wx:if="{{detail}}">
+    <view class="hero">
+      <view class="title">{{title}}</view>
+      <view wx:if="{{specification}}" class="subtitle">{{specification}}</view>
+      <view class="meta-line">{{categoryText}} · 默认位置 {{defaultLocationText}}</view>
+    </view>
+
+    <view class="summary-band">
+      <view>
+        <view class="summary-label">当前库存</view>
+        <view class="summary-value">{{totalText}}</view>
+      </view>
+      <text class="badge {{stockClass}}">{{stockStatusText}}</text>
+    </view>
+
+    <view class="actions">
+      <button class="action add" bindtap="goAdd">增加</button>
+      <button class="action consume" bindtap="goConsume">消耗</button>
+      <button class="action edit" bindtap="goEdit">编辑</button>
+    </view>
+
+    <view class="section-title">批次</view>
+    <view wx:if="{{emptyBatches}}" class="empty">暂无批次</view>
+    <view wx:for="{{batchRows}}" wx:key="id" class="batch-row">
+      <view class="batch-top">
+        <view class="batch-qty">{{item.quantityText}}</view>
+        <text class="badge {{item.statusClass}}">{{item.statusText}}</text>
+      </view>
+      <view class="batch-meta">{{item.locationText}}</view>
+      <view class="batch-meta" wx:if="{{item.hasPurchaseDate}}">购买日期：{{item.purchaseDateText}}</view>
+      <view class="batch-meta" wx:if="{{item.hasProductionDate}}">生产日期：{{item.productionDateText}}</view>
+      <view class="batch-meta">到期日期：{{item.expiryDateText}} · {{item.remainingText}}</view>
+    </view>
+
+    <view class="section-title tx-title">最近流水</view>
+    <view wx:if="{{emptyTransactions}}" class="empty">暂无库存流水</view>
+    <view wx:for="{{txRows}}" wx:key="id" class="tx-row">
+      <view class="tx-main"><text>{{item.dateText}}</text><text>{{item.typeText}}</text><text class="tx-qty">{{item.quantityText}}</text></view>
+      <view wx:if="{{item.note}}" class="tx-note">{{item.note}}</view>
+    </view>
+  </view>
+</scroll-view>

@@ -41,6 +41,7 @@ interface ConsumePage {
   setData(data: Partial<ConsumeData>): void;
   loadItems(): Promise<void>;
   loadCategories(): Promise<void>;
+  selectItemById(itemId: string): Promise<void>;
 }
 
 function getPhase2Service(): typeof import('../../services/phase2-ui-service') {
@@ -87,9 +88,10 @@ Page({
     error: '',
   } as ConsumeData,
 
-  onLoad(this: ConsumePage) {
-    void this.loadCategories();
-    void this.loadItems();
+  onLoad(this: ConsumePage, options: { itemId?: string }) {
+    void Promise.all([this.loadCategories(), this.loadItems()]).then(() => {
+      if (options.itemId) void this.selectItemById(options.itemId);
+    });
   },
 
   async loadCategories(this: ConsumePage) {
@@ -130,8 +132,7 @@ Page({
     void this.loadItems();
   },
 
-  async selectItem(this: ConsumePage, event: { currentTarget: { dataset: { id: string } } }) {
-    const itemId = event.currentTarget.dataset.id;
+  async selectItemById(this: ConsumePage, itemId: string) {
     this.setData({ selectedItemId: itemId, result: '', error: '' });
     try {
       const { getItemDetail } = getPhase2Service();
@@ -142,6 +143,10 @@ Page({
     } catch (error) {
       this.setData({ error: mapUserError(error) });
     }
+  },
+
+  async selectItem(this: ConsumePage, event: { currentTarget: { dataset: { id: string } } }) {
+    await this.selectItemById(event.currentTarget.dataset.id);
   },
 
   onFieldInput(this: ConsumePage, event: { currentTarget: { dataset: { field: 'quantity' | 'note' } }; detail: { value: string } }) {

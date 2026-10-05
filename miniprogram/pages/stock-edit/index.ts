@@ -64,6 +64,7 @@ interface EditPage {
   loadItems(): Promise<void>;
   loadTaxonomy(): Promise<void>;
   refreshDetail(): Promise<void>;
+  selectItemById(itemId: string): Promise<void>;
 }
 
 const emptyItemForm: ItemForm = {
@@ -177,9 +178,10 @@ Page({
     emptyBatches: false,
   } as EditData,
 
-  onLoad(this: EditPage) {
-    void this.loadTaxonomy();
-    void this.loadItems();
+  onLoad(this: EditPage, options: { itemId?: string }) {
+    void Promise.all([this.loadTaxonomy(), this.loadItems()]).then(() => {
+      if (options.itemId) void this.selectItemById(options.itemId);
+    });
   },
 
   async loadTaxonomy(this: EditPage) {
@@ -232,13 +234,16 @@ Page({
     });
   },
 
+  async selectItem(this: EditPage, event: { currentTarget: { dataset: { id: string } } }) {
+    await this.selectItemById(event.currentTarget.dataset.id);
+  },
+
   onSearchInput(this: EditPage, event: { detail: { value: string } }) {
     this.setData({ search: event.detail.value });
     void this.loadItems();
   },
 
-  async selectItem(this: EditPage, event: { currentTarget: { dataset: { id: string } } }) {
-    const itemId = event.currentTarget.dataset.id;
+  async selectItemById(this: EditPage, itemId: string) {
     this.setData({ selectedItemId: itemId, result: '', error: '', batchForm: null, adjustForm: null });
     this.setData({ items: this.data.items.map((item) => ({ ...item, selectedClass: item.id === itemId ? 'selected' : '' })) });
     try {
