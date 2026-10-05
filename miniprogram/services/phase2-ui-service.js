@@ -80,8 +80,59 @@ async function listInventoryRows(options = {}) {
         offset: options.offset || 0,
     });
 }
+function isUnsupportedHomeDashboard(error) {
+    const message = String(error.message || '');
+    return /Unsupported action:\s*getHomeDashboard/i.test(message);
+}
+function buildFallbackHomeDashboard(rows) {
+    const expiringCount = rows.filter((row) => row.expiryStatuses?.includes('EXPIRING') || row.expiryStatus === 'EXPIRING').length;
+    const expiredCount = rows.filter((row) => row.expiryStatuses?.includes('EXPIRED') || row.expiryStatus === 'EXPIRED').length;
+    const lowStockCount = rows.filter((row) => row.stockStatus === 'LOW').length;
+    const zeroStockCount = rows.filter((row) => row.stockStatus === 'ZERO').length;
+    const restockCount = rows.filter((row) => row.restockNeeded).length;
+    const alertLines = [];
+    if (expiredCount)
+        alertLines.push(`${expiredCount} 件物品已过期`);
+    if (expiringCount)
+        alertLines.push(`${expiringCount} 件物品近期临期`);
+    if (lowStockCount)
+        alertLines.push(`${lowStockCount} 件物品库存不足`);
+    if (zeroStockCount)
+        alertLines.push(`${zeroStockCount} 件物品已经归零`);
+    if (!alertLines.length)
+        alertLines.push(rows.length ? '当前没有需要立即处理的库存' : '还没有库存，先记录第一件物品');
+    const backgroundFacts = rows
+        .filter((row) => row.totalQuantity > 0)
+        .slice(0, 12)
+        .map((row, index) => ({
+        itemId: row.item._id,
+        text: `${row.label} · ${row.totalQuantity}${row.item.unit}${row.locationSummary ? ` · ${row.locationSummary}` : ''}`,
+        lane: index % 3,
+    }));
+    return {
+        summary: {
+            itemCount: rows.length,
+            batchCount: rows.reduce((sum, row) => sum + (row.batchCount ?? (row.totalQuantity > 0 ? 1 : 0)), 0),
+            expiringCount,
+            expiredCount,
+            lowStockCount,
+            zeroStockCount,
+            restockCount,
+        },
+        alertLines,
+        backgroundFacts,
+    };
+}
 async function getHomeDashboard() {
-    return callCloudFunction('inventoryRead', 'getHomeDashboard');
+    try {
+        return await callCloudFunction('inventoryRead', 'getHomeDashboard');
+    }
+    catch (error) {
+        if (!isUnsupportedHomeDashboard(error))
+            throw error;
+        const rows = await listInventoryRows();
+        return buildFallbackHomeDashboard(rows);
+    }
 }
 async function getItemDetail(itemId) {
     return callCloudFunction('inventoryRead', 'getItemDetail', { itemId });
