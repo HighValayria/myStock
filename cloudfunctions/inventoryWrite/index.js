@@ -528,6 +528,16 @@ async function dismissReminder(openid, input) {
         return { ...reminder, status: 'DISMISSED', dismissedAt: timestamp, updatedAt: timestamp };
     });
 }
+async function purgeDismissedReminder(openid, input) {
+    assertString(input.reminderId, 'reminderId');
+    return db.runTransaction(async (tx) => {
+        const reminder = await txGet(tx, COLLECTIONS.reminders, input.reminderId, openid);
+        if (reminder.status !== 'DISMISSED')
+            throw inventoryError('DELETE_NOT_ALLOWED', 'Only dismissed reminders can be purged');
+        await txRemove(tx, COLLECTIONS.reminders, reminder._id);
+        return { reminderId: reminder._id, purged: true };
+    });
+}
 async function addToRestock(openid, input) {
     assertString(input.itemId, 'itemId');
     const item = await queryOne(COLLECTIONS.items, { _id: input.itemId, _openid: openid });
@@ -607,6 +617,8 @@ async function main(event) {
             return ok(await markReminderRead(openid, event.payload));
         if (event.action === 'dismissReminder')
             return ok(await dismissReminder(openid, event.payload));
+        if (event.action === 'purgeDismissedReminder')
+            return ok(await purgeDismissedReminder(openid, event.payload));
         if (event.action === 'addToRestock')
             return ok(await addToRestock(openid, event.payload));
         if (event.action === 'dismissRestock')

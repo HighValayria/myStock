@@ -130,6 +130,26 @@ Page({
     }
   },
 
+  async purgeReminder(this: ReminderPage, event: { currentTarget: { dataset: { id: string } } }) {
+    const reminderId = event.currentTarget.dataset.id;
+    wx.showModal({
+      title: '彻底去除提醒',
+      content: '去除后这条已忽略提醒不会再出现在回收站中。',
+      confirmText: '去除',
+      success: async (result) => {
+        if (!result.confirm) return;
+        try {
+          const { purgeDismissedReminder } = getPhase2Service();
+          await purgeDismissedReminder(reminderId);
+          wx.showToast({ title: '已去除', icon: 'success' });
+          await this.loadData();
+        } catch (error) {
+          wx.showToast({ title: mapUserError(error), icon: 'none' });
+        }
+      },
+    });
+  },
+
   async addRestock(this: ReminderPage, event: { currentTarget: { dataset: { itemId: string } } }) {
     try {
       const { addToRestock } = getPhase2Service();

@@ -16,6 +16,7 @@ exports.addStock = addStock;
 exports.consumeStock = consumeStock;
 exports.markReminderRead = markReminderRead;
 exports.dismissReminder = dismissReminder;
+exports.purgeDismissedReminder = purgeDismissedReminder;
 exports.addToRestock = addToRestock;
 exports.dismissRestock = dismissRestock;
 const cloud_1 = require("../config/cloud");
@@ -172,6 +173,9 @@ async function markReminderRead(reminderId) {
 }
 async function dismissReminder(reminderId) {
     return callCloudFunction('inventoryWrite', 'dismissReminder', { reminderId });
+}
+async function purgeDismissedReminder(reminderId) {
+    return callCloudFunction('inventoryWrite', 'purgeDismissedReminder', { reminderId });
 }
 async function addToRestock(itemId) {
     return callCloudFunction('inventoryWrite', 'addToRestock', { itemId });

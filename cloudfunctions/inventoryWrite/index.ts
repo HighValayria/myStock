@@ -29,6 +29,7 @@ type MutationAction =
   | 'updateBatch'
   | 'markReminderRead'
   | 'dismissReminder'
+  | 'purgeDismissedReminder'
   | 'addToRestock'
   | 'dismissRestock'
   | 'cleanupDevItem';
@@ -645,6 +646,16 @@ async function dismissReminder(openid: string, input: any) {
   });
 }
 
+async function purgeDismissedReminder(openid: string, input: any) {
+  assertString(input.reminderId, 'reminderId');
+  return db.runTransaction(async (tx: any) => {
+    const reminder = await txGet<ReminderDoc>(tx, COLLECTIONS.reminders, input.reminderId, openid);
+    if (reminder.status !== 'DISMISSED') throw inventoryError('DELETE_NOT_ALLOWED', 'Only dismissed reminders can be purged');
+    await txRemove(tx, COLLECTIONS.reminders, reminder._id);
+    return { reminderId: reminder._id, purged: true };
+  });
+}
+
 async function addToRestock(openid: string, input: any) {
   assertString(input.itemId, 'itemId');
   const item = await queryOne<ItemDoc>(COLLECTIONS.items, { _id: input.itemId, _openid: openid });
@@ -711,6 +722,7 @@ export async function main(event: MutationEvent) {
     if (event.action === 'updateBatch') return ok(await updateBatch(openid, event.payload));
     if (event.action === 'markReminderRead') return ok(await markReminderRead(openid, event.payload));
     if (event.action === 'dismissReminder') return ok(await dismissReminder(openid, event.payload));
+    if (event.action === 'purgeDismissedReminder') return ok(await purgeDismissedReminder(openid, event.payload));
     if (event.action === 'addToRestock') return ok(await addToRestock(openid, event.payload));
     if (event.action === 'dismissRestock') return ok(await dismissRestock(openid, event.payload));
     if (event.action === 'cleanupDevItem') return ok(await cleanupDevItem(openid, event.payload));

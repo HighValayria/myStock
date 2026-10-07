@@ -383,6 +383,7 @@ async function listReminderCenter(openid, payload = {}) {
         priority: reminderPriority(reminder),
         canView: reminder.status === "ACTIVE" || reminder.status === "READ" || reminder.status === "DISMISSED",
         canDismiss: reminder.status === "ACTIVE" || reminder.status === "READ",
+        canPurge: reminder.status === "DISMISSED",
         canAddRestock: reminder.type === "ZERO_STOCK" && (reminder.status === "ACTIVE" || reminder.status === "READ") && !neededRestockItemIds.has(reminder.itemId),
       };
     })

@@ -112,6 +112,7 @@ export interface Phase4ReminderRow {
   priority: number;
   canView: boolean;
   canDismiss: boolean;
+  canPurge?: boolean;
   canAddRestock: boolean;
 }
 
@@ -305,6 +306,10 @@ export async function markReminderRead(reminderId: string) {
 
 export async function dismissReminder(reminderId: string) {
   return callCloudFunction('inventoryWrite', 'dismissReminder', { reminderId });
+}
+
+export async function purgeDismissedReminder(reminderId: string) {
+  return callCloudFunction('inventoryWrite', 'purgeDismissedReminder', { reminderId });
 }
 
 export async function addToRestock(itemId: string) {

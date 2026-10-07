@@ -18,8 +18,7 @@
   </view>
 
   <view class="status-row">
-    <button class="status-filter {{statusFilter === 'open' ? 'active' : ''}}" data-status="open" bindtap="changeStatus">当前未结束</button>
-    <button class="status-filter {{statusFilter === 'ACTIVE' ? 'active' : ''}}" data-status="ACTIVE" bindtap="changeStatus">新提醒</button>
+    <button class="status-filter {{statusFilter === 'open' ? 'active' : ''}}" data-status="open" bindtap="changeStatus">当前提醒</button>
     <button class="status-filter {{statusFilter === 'READ' ? 'active' : ''}}" data-status="READ" bindtap="changeStatus">已查看</button>
     <button class="status-filter {{statusFilter === 'DISMISSED' ? 'active' : ''}}" data-status="DISMISSED" bindtap="changeStatus">回收站</button>
     <button class="status-filter {{statusFilter === 'all' ? 'active' : ''}}" data-status="all" bindtap="changeStatus">全部</button>
@@ -38,6 +37,7 @@
     <view class="card-actions">
       <button wx:if="{{item.canView}}" size="mini" class="mini primary" data-id="{{item.id}}" data-item-id="{{item.itemId}}" bindtap="viewReminder">查看</button>
       <button wx:if="{{item.canDismiss}}" size="mini" class="mini quiet" data-id="{{item.id}}" bindtap="dismissReminder">忽略</button>
+      <button wx:if="{{item.canPurge}}" size="mini" class="mini danger" data-id="{{item.id}}" bindtap="purgeReminder">彻底去除</button>
       <button wx:if="{{item.canAddRestock}}" size="mini" class="mini restock" data-item-id="{{item.itemId}}" bindtap="addRestock">加入待补货</button>
     </view>
   </view>

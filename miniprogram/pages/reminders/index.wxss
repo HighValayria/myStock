@@ -21,6 +21,7 @@
 .mini { margin: 0; height: 58rpx; line-height: 58rpx; padding: 0 20rpx; border-radius: 8rpx; font-size: 24rpx; }
 .mini.primary { background: #1677ff; color: #fff; }
 .mini.quiet { background: #eef2f6; color: #344054; }
+.mini.danger { background: #d92d20; color: #fff; }
 .mini.restock { background: #027a48; color: #fff; }
 .restock-row { display: flex; align-items: center; justify-content: space-between; gap: 18rpx; }
 .restock-name { font-size: 30rpx; font-weight: 700; line-height: 1.35; word-break: break-all; }
