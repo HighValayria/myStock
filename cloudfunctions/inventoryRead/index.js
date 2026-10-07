@@ -299,7 +299,7 @@ function reminderTypeText(type) {
 
 function reminderStatusText(status) {
   const map = {
-    ACTIVE: "待处理",
+    ACTIVE: "新提醒",
     READ: "已查看",
     DISMISSED: "已忽略",
     RESOLVED: "已解决",

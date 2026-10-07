@@ -121,6 +121,9 @@ Page({
 
   onLoad(this: InventoryPage) {
     void this.loadOptions();
+  },
+
+  onShow(this: InventoryPage) {
     void this.loadRows();
   },
 

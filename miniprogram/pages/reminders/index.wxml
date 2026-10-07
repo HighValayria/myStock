@@ -4,7 +4,7 @@
       <view class="eyebrow">提醒中心</view>
       <view class="title">需要处理</view>
     </view>
-    <view class="summary-pill">{{summary.activeCount}} 待处理</view>
+    <view class="summary-pill">{{summary.activeCount}} 新提醒</view>
   </view>
 
   <view wx:if="{{error}}" class="error-block">
@@ -18,8 +18,8 @@
   </view>
 
   <view class="status-row">
-    <button class="status-filter {{statusFilter === 'open' ? 'active' : ''}}" data-status="open" bindtap="changeStatus">未解决</button>
-    <button class="status-filter {{statusFilter === 'ACTIVE' ? 'active' : ''}}" data-status="ACTIVE" bindtap="changeStatus">待处理</button>
+    <button class="status-filter {{statusFilter === 'open' ? 'active' : ''}}" data-status="open" bindtap="changeStatus">当前未结束</button>
+    <button class="status-filter {{statusFilter === 'ACTIVE' ? 'active' : ''}}" data-status="ACTIVE" bindtap="changeStatus">新提醒</button>
     <button class="status-filter {{statusFilter === 'READ' ? 'active' : ''}}" data-status="READ" bindtap="changeStatus">已查看</button>
     <button class="status-filter {{statusFilter === 'DISMISSED' ? 'active' : ''}}" data-status="DISMISSED" bindtap="changeStatus">已忽略</button>
     <button class="status-filter {{statusFilter === 'all' ? 'active' : ''}}" data-status="all" bindtap="changeStatus">全部</button>

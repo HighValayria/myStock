@@ -69,6 +69,8 @@ Page({
     },
     onLoad() {
         void this.loadOptions();
+    },
+    onShow() {
         void this.loadRows();
     },
     onPullDownRefresh() {
