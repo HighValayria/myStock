@@ -1177,6 +1177,12 @@ RestockItem.status = NEEDED
 
 Reminder 与 RestockItem 均存在，但职责不同。
 
+补充预期：
+
+- 加入待补货成功后，同一条零库存提醒不再显示“加入待补货”按钮；
+- 待补货区显示该 Item；
+- 不创建重复 NEEDED。
+
 ## TC-P4-014 拒绝加入待补货
 
 步骤：

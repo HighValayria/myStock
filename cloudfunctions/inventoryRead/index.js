@@ -353,6 +353,7 @@ async function listReminderCenter(openid, payload = {}) {
   const locationLabels = buildLocationMaps(locations).labels;
   const typeFilter = payload.type ? String(payload.type) : "";
   const statusFilter = payload.status ? String(payload.status) : "open";
+  const neededRestockItemIds = new Set(restocks.filter((restock) => restock.status === "NEEDED").map((restock) => restock.itemId));
   const rows = reminders
     .filter((reminder) => !typeFilter || reminder.type === typeFilter)
     .filter((reminder) => {
@@ -381,7 +382,7 @@ async function listReminderCenter(openid, payload = {}) {
         priority: reminderPriority(reminder),
         canView: reminder.status === "ACTIVE" || reminder.status === "READ" || reminder.status === "DISMISSED",
         canDismiss: reminder.status === "ACTIVE" || reminder.status === "READ",
-        canAddRestock: reminder.type === "ZERO_STOCK" && (reminder.status === "ACTIVE" || reminder.status === "READ"),
+        canAddRestock: reminder.type === "ZERO_STOCK" && (reminder.status === "ACTIVE" || reminder.status === "READ") && !neededRestockItemIds.has(reminder.itemId),
       };
     })
     .sort((a, b) => a.priority - b.priority || b.reminder.createdAt - a.reminder.createdAt);
