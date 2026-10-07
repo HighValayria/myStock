@@ -37,11 +37,11 @@ async function assertRejects(fn: () => Promise<unknown>, code: string, message: 
   }
   throw new Error(`${message}: expected rejection`);
 }
-function createContext(): TestContext {
+function createContext(today: Date = TODAY): TestContext {
   resetIdSequenceForTests();
   const repos = createMemoryRepositories();
-  const reminders = new ReminderService(repos, { userId: USER_ID, defaultExpiryWarningDays: 7, now: () => TODAY });
-  const inventory = new InventoryService(repos, { userId: USER_ID, defaultExpiryWarningDays: 7, now: () => TODAY }, reminders);
+  const reminders = new ReminderService(repos, { userId: USER_ID, defaultExpiryWarningDays: 7, now: () => today });
+  const inventory = new InventoryService(repos, { userId: USER_ID, defaultExpiryWarningDays: 7, now: () => today }, reminders);
   return { repos, inventory, reminders };
 }
 
@@ -288,6 +288,168 @@ const tests: Array<[string, () => Promise<void>]> = [
       'month shelf life calculates expected expiry',
     );
     await assertRejects(async () => resolveExpiryDate({ expiryDate: '2026-02-30' }), 'VALIDATION_ERROR', 'invalid date is rejected');
+  }],
+
+  ['T-P4-A01 first expiring reminder is created once', async () => {
+    const { repos, inventory, reminders } = createContext();
+    const added = await inventory.addStock(stockInput({ quantity: 2, expiryDate: '2026-10-10' }));
+    await reminders.recomputeReminders({ itemId: added.item._id });
+    const expiring = (await repos.reminders.listByItem(USER_ID, added.item._id)).filter((reminder) => reminder.type === 'EXPIRING');
+    assertEqual(expiring.length, 1, 'one expiring reminder');
+    assertEqual(expiring[0].status, 'ACTIVE', 'expiring active');
+  }],
+
+  ['T-P4-A02 repeated recompute does not duplicate same expiring cycle', async () => {
+    const { repos, inventory, reminders } = createContext();
+    const added = await inventory.addStock(stockInput({ quantity: 2, expiryDate: '2026-10-10' }));
+    await reminders.recomputeReminders({ itemId: added.item._id });
+    await reminders.recomputeReminders({ itemId: added.item._id });
+    const expiring = (await repos.reminders.listByItem(USER_ID, added.item._id)).filter((reminder) => reminder.type === 'EXPIRING');
+    assertEqual(expiring.length, 1, 'still one expiring reminder');
+  }],
+
+  ['T-P4-A03 dismissed expiring reminder remains dismissed in same cycle', async () => {
+    const { repos, inventory, reminders } = createContext();
+    const added = await inventory.addStock(stockInput({ quantity: 2, expiryDate: '2026-10-10' }));
+    const reminder = (await repos.reminders.listByItem(USER_ID, added.item._id)).find((item) => item.type === 'EXPIRING');
+    assert(reminder, 'expiring reminder exists');
+    await reminders.dismissReminder(reminder!._id);
+    await reminders.recomputeReminders({ itemId: added.item._id });
+    const expiring = (await repos.reminders.listByItem(USER_ID, added.item._id)).filter((item) => item.type === 'EXPIRING');
+    assertEqual(expiring.length, 1, 'no duplicate after dismiss');
+    assertEqual(expiring[0].status, 'DISMISSED', 'dismissed status kept');
+  }],
+
+  ['T-P4-A04 expiring reminder resolves when batch becomes safe', async () => {
+    const { repos, inventory } = createContext();
+    const added = await inventory.addStock(stockInput({ quantity: 2, expiryDate: '2026-10-10' }));
+    await inventory.updateBatch(added.batch._id, { expiryDate: '2026-12-01' });
+    const expiring = (await repos.reminders.listByItem(USER_ID, added.item._id)).filter((reminder) => reminder.type === 'EXPIRING');
+    assert(expiring.some((reminder) => reminder.status === 'RESOLVED'), 'expiring resolved');
+  }],
+
+  ['T-P4-A05 expiring reminder can enter a new cycle after resolved', async () => {
+    const { repos, inventory } = createContext();
+    const added = await inventory.addStock(stockInput({ quantity: 2, expiryDate: '2026-10-10' }));
+    await inventory.updateBatch(added.batch._id, { expiryDate: '2026-12-01' });
+    await inventory.updateBatch(added.batch._id, { expiryDate: '2026-10-09' });
+    const expiring = (await repos.reminders.listByItem(USER_ID, added.item._id)).filter((reminder) => reminder.type === 'EXPIRING');
+    assertEqual(expiring.length, 2, 'new expiring reminder created after resolved');
+    assert(expiring.some((reminder) => reminder.status === 'ACTIVE'), 'new active expiring exists');
+  }],
+
+  ['T-P4-A06 expiring transitions to expired without deleting stock', async () => {
+    const { repos, inventory } = createContext();
+    const added = await inventory.addStock(stockInput({ quantity: 2, expiryDate: '2026-10-03' }));
+    const laterReminders = new ReminderService(repos, { userId: USER_ID, defaultExpiryWarningDays: 7, now: () => new Date('2026-10-05T00:00:00.000Z') });
+    await laterReminders.recomputeReminders({ itemId: added.item._id });
+    const reminders = await repos.reminders.listByItem(USER_ID, added.item._id);
+    assert(reminders.some((reminder) => reminder.type === 'EXPIRING' && reminder.status === 'RESOLVED'), 'expiring resolved');
+    assert(reminders.some((reminder) => reminder.type === 'EXPIRED' && reminder.status === 'ACTIVE'), 'expired active');
+    assertEqual((await repos.batches.getById(USER_ID, added.batch._id))?.quantity, 2, 'expired stock remains');
+  }],
+
+  ['T-P4-A07 expired reminder does not auto-delete or zero inventory', async () => {
+    const { repos, inventory } = createContext();
+    const added = await inventory.addStock(stockInput({ quantity: 3, expiryDate: '2026-10-01' }));
+    const item = await repos.items.getById(USER_ID, added.item._id);
+    const batch = await repos.batches.getById(USER_ID, added.batch._id);
+    assert(item, 'expired item remains');
+    assertEqual(batch?.quantity, 3, 'expired batch quantity remains');
+  }],
+
+  ['T-P4-A08 low stock reminder is created on first threshold crossing', async () => {
+    const { repos, inventory } = createContext();
+    const added = await inventory.addStock(stockInput({ item: milkItem({ lowStockThreshold: 2 }), quantity: 3, expiryDate: '2026-12-01' }));
+    await inventory.consumeStock({ itemId: added.item._id, quantity: 1 });
+    const reminders = await repos.reminders.listByItem(USER_ID, added.item._id);
+    assert(reminders.some((reminder) => reminder.type === 'LOW_STOCK' && reminder.status === 'ACTIVE'), 'low stock active');
+  }],
+
+  ['T-P4-A09 dismissed low stock reminder does not duplicate while still low', async () => {
+    const { repos, inventory, reminders } = createContext();
+    const added = await inventory.addStock(stockInput({ item: milkItem({ lowStockThreshold: 2 }), quantity: 3, expiryDate: '2026-12-01' }));
+    await inventory.consumeStock({ itemId: added.item._id, quantity: 1 });
+    const low = (await repos.reminders.listByItem(USER_ID, added.item._id)).find((reminder) => reminder.type === 'LOW_STOCK');
+    assert(low, 'low stock reminder exists');
+    await reminders.dismissReminder(low!._id);
+    await inventory.consumeStock({ itemId: added.item._id, quantity: 1 });
+    const lows = (await repos.reminders.listByItem(USER_ID, added.item._id)).filter((reminder) => reminder.type === 'LOW_STOCK');
+    assertEqual(lows.length, 1, 'low stock not duplicated in same cycle');
+    assertEqual(lows[0].status, 'DISMISSED', 'dismissed low stock kept');
+  }],
+
+  ['T-P4-A10 low stock resolves after stock recovers', async () => {
+    const { repos, inventory } = createContext();
+    const added = await inventory.addStock(stockInput({ item: milkItem({ lowStockThreshold: 2 }), quantity: 3, expiryDate: '2026-12-01' }));
+    await inventory.consumeStock({ itemId: added.item._id, quantity: 1 });
+    await inventory.addStock(stockInput({ itemId: added.item._id, item: undefined, quantity: 3, expiryDate: '2026-12-01' }));
+    const lows = (await repos.reminders.listByItem(USER_ID, added.item._id)).filter((reminder) => reminder.type === 'LOW_STOCK');
+    assert(lows.some((reminder) => reminder.status === 'RESOLVED'), 'low stock resolved');
+  }],
+
+  ['T-P4-A11 low stock creates a new reminder after recovery and later drop', async () => {
+    const { repos, inventory } = createContext();
+    const added = await inventory.addStock(stockInput({ item: milkItem({ lowStockThreshold: 2 }), quantity: 3, expiryDate: '2026-12-01' }));
+    await inventory.consumeStock({ itemId: added.item._id, quantity: 1 });
+    await inventory.addStock(stockInput({ itemId: added.item._id, item: undefined, quantity: 3, expiryDate: '2026-12-01' }));
+    await inventory.consumeStock({ itemId: added.item._id, quantity: 3 });
+    const lows = (await repos.reminders.listByItem(USER_ID, added.item._id)).filter((reminder) => reminder.type === 'LOW_STOCK');
+    assertEqual(lows.length, 2, 'second low stock cycle created');
+    assert(lows.some((reminder) => reminder.status === 'ACTIVE'), 'new low stock active');
+  }],
+
+  ['T-P4-A12 zero stock reminder is separate from restock item', async () => {
+    const { repos, inventory } = createContext();
+    const added = await inventory.addStock(stockInput({ quantity: 1, expiryDate: '2026-12-01' }));
+    await inventory.consumeStock({ itemId: added.item._id, quantity: 1 });
+    const reminders = await repos.reminders.listByItem(USER_ID, added.item._id);
+    assert(reminders.some((reminder) => reminder.type === 'ZERO_STOCK' && reminder.status === 'ACTIVE'), 'zero stock active');
+    assertEqual((await repos.restockItems.listByUser(USER_ID)).length, 0, 'restock not automatic without user choice');
+  }],
+
+  ['T-P4-A13 manual restock creates NEEDED restock item', async () => {
+    const { repos, inventory, reminders } = createContext();
+    const added = await inventory.addStock(stockInput({ quantity: 1, expiryDate: '2026-12-01' }));
+    await inventory.consumeStock({ itemId: added.item._id, quantity: 1 });
+    const restock = await reminders.addToRestock(added.item._id);
+    assertEqual(restock.status, 'NEEDED', 'restock needed');
+    const zero = (await repos.reminders.listByItem(USER_ID, added.item._id)).find((reminder) => reminder.type === 'ZERO_STOCK');
+    assert(zero, 'zero stock reminder remains separate');
+  }],
+
+  ['T-P4-A14 addToRestock is idempotent for same item while needed', async () => {
+    const { repos, inventory, reminders } = createContext();
+    const added = await inventory.addStock(stockInput({ quantity: 1, expiryDate: '2026-12-01' }));
+    await inventory.consumeStock({ itemId: added.item._id, quantity: 1 });
+    const first = await reminders.addToRestock(added.item._id);
+    const second = await reminders.addToRestock(added.item._id);
+    assertEqual(first._id, second._id, 'same needed restock returned');
+    assertEqual((await repos.restockItems.listByUser(USER_ID)).filter((item) => item.status === 'NEEDED').length, 1, 'one needed restock');
+  }],
+
+  ['T-P4-A15 addStock completes needed restock and resolves zero stock', async () => {
+    const { repos, inventory, reminders } = createContext();
+    const added = await inventory.addStock(stockInput({ quantity: 1, expiryDate: '2026-12-01' }));
+    await inventory.consumeStock({ itemId: added.item._id, quantity: 1 });
+    await reminders.addToRestock(added.item._id);
+    await inventory.addStock(stockInput({ itemId: added.item._id, item: undefined, quantity: 2, expiryDate: '2026-12-01' }));
+    const zero = (await repos.reminders.listByItem(USER_ID, added.item._id)).filter((reminder) => reminder.type === 'ZERO_STOCK');
+    assert(zero.some((reminder) => reminder.status === 'RESOLVED'), 'zero stock resolved');
+    const restocks = await repos.restockItems.listByUser(USER_ID);
+    assert(restocks.some((item) => item.status === 'PURCHASED'), 'restock purchased');
+  }],
+
+  ['T-P4-A16 dismissRestock removes item from needed restock list', async () => {
+    const { repos, inventory, reminders } = createContext();
+    const added = await inventory.addStock(stockInput({ quantity: 1, expiryDate: '2026-12-01' }));
+    await inventory.consumeStock({ itemId: added.item._id, quantity: 1 });
+    const restock = await reminders.addToRestock(added.item._id);
+    await reminders.dismissRestock(restock._id);
+    const needed = await repos.restockItems.findNeededByItem(USER_ID, added.item._id);
+    assertEqual(needed, null, 'no needed restock after dismiss');
+    const all = await repos.restockItems.listByUser(USER_ID);
+    assert(all.some((item) => item.status === 'DISMISSED'), 'dismissed restock retained as history');
   }],
 ];
 

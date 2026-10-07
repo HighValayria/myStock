@@ -3,6 +3,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.ReminderService = void 0;
 const collections_1 = require("../config/collections");
 const date_1 = require("../utils/date");
+const errors_1 = require("../utils/errors");
 const id_1 = require("../utils/id");
 class ReminderService {
     constructor(repos, options) {
@@ -76,10 +77,48 @@ class ReminderService {
         });
     }
     async markReminderRead(reminderId) {
+        const reminder = await this.repos.reminders.getById(this.options.userId, reminderId);
+        if (!reminder)
+            throw new errors_1.InventoryError('NOT_FOUND', `Reminder not found: ${reminderId}`);
+        if (reminder.status !== 'ACTIVE')
+            return reminder;
         return this.repos.reminders.update(this.options.userId, reminderId, {
             status: 'READ',
             readAt: this.now().getTime(),
             updatedAt: this.now().getTime(),
+        });
+    }
+    async addToRestock(itemId, note = '') {
+        const item = await this.repos.items.getById(this.options.userId, itemId);
+        if (!item)
+            throw new errors_1.InventoryError('NOT_FOUND', `Item not found: ${itemId}`);
+        const existing = await this.repos.restockItems.findNeededByItem(this.options.userId, itemId);
+        if (existing)
+            return existing;
+        const now = this.now().getTime();
+        return this.repos.restockItems.create({
+            _id: (0, id_1.createId)('restock'),
+            _openid: this.options.userId,
+            schemaVersion: collections_1.SCHEMA_VERSION,
+            itemId,
+            status: 'NEEDED',
+            createdAt: now,
+            updatedAt: now,
+            resolvedAt: null,
+            note,
+        });
+    }
+    async dismissRestock(restockId) {
+        const restock = (await this.repos.restockItems.listByUser(this.options.userId)).find((item) => item._id === restockId);
+        if (!restock)
+            throw new errors_1.InventoryError('NOT_FOUND', `Restock item not found: ${restockId}`);
+        if (restock.status !== 'NEEDED')
+            return restock;
+        const now = this.now().getTime();
+        return this.repos.restockItems.update(this.options.userId, restockId, {
+            status: 'DISMISSED',
+            resolvedAt: now,
+            updatedAt: now,
         });
     }
     async ensureReminder(result, item, batch, type) {

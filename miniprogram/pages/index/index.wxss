@@ -32,7 +32,9 @@
   padding: 22rpx 24rpx;
   margin-bottom: 30rpx;
 }
-.panel-title { font-size: 28rpx; font-weight: 700; margin-bottom: 12rpx; }
+.panel-head { display: flex; align-items: center; justify-content: space-between; gap: 16rpx; margin-bottom: 12rpx; }
+.panel-title { font-size: 28rpx; font-weight: 700; }
+.panel-link { flex: none; height: 52rpx; line-height: 52rpx; margin: 0; padding: 0 18rpx; border-radius: 8rpx; background: #eef2f6; color: #344054; font-size: 23rpx; }
 .alert-line { color: #344054; font-size: 26rpx; line-height: 1.7; }
 .flow-field {
   min-height: 300rpx;

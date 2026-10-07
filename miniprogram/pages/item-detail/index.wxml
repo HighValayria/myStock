@@ -26,6 +26,7 @@
       <button class="action consume" bindtap="goConsume">消耗</button>
       <button class="action edit" bindtap="goEdit">编辑</button>
     </view>
+    <button wx:if="{{canAddRestock}}" class="restock-button" bindtap="addRestock">加入待补货</button>
 
     <view class="section-title">批次</view>
     <view wx:if="{{emptyBatches}}" class="empty">暂无批次</view>

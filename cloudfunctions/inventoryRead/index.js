@@ -122,6 +122,10 @@ function activeReminder(reminder) {
   return reminder.status === "ACTIVE" || reminder.status === "READ";
 }
 
+function openReminder(reminder) {
+  return reminder.status === "ACTIVE" || reminder.status === "READ" || reminder.status === "DISMISSED";
+}
+
 function buildNameMap(items) {
   return new Map(items.map((item) => [item._id, item.name]));
 }
@@ -283,6 +287,136 @@ function backgroundFact(row) {
   return `${row.label} · ${row.totalQuantity}${row.item.unit} · ${row.locationSummary}`;
 }
 
+function reminderTypeText(type) {
+  const map = {
+    EXPIRED: "已过期",
+    EXPIRING: "临期",
+    LOW_STOCK: "低库存",
+    ZERO_STOCK: "零库存",
+  };
+  return map[type] || type;
+}
+
+function reminderStatusText(status) {
+  const map = {
+    ACTIVE: "待处理",
+    READ: "已查看",
+    DISMISSED: "已忽略",
+    RESOLVED: "已解决",
+  };
+  return map[status] || status;
+}
+
+function reminderPriority(reminder) {
+  const statusOffset = reminder.status === "RESOLVED" ? 100 : reminder.status === "DISMISSED" ? 40 : reminder.status === "READ" ? 10 : 0;
+  const typePriority = { EXPIRED: 0, EXPIRING: 1, ZERO_STOCK: 2, LOW_STOCK: 3 };
+  return statusOffset + (typePriority[reminder.type] == null ? 9 : typePriority[reminder.type]);
+}
+
+function reminderTitle(reminder, item, batch) {
+  const label = item ? itemLabel(item) : "未知物品";
+  if (reminder.type === "EXPIRED") {
+    const days = batch ? Math.abs(remainingDays(effectiveExpiry(batch))) : null;
+    return days == null ? `${label} 已过期` : `${label} 已过期 ${days} 天`;
+  }
+  if (reminder.type === "EXPIRING") {
+    const days = batch ? remainingDays(effectiveExpiry(batch)) : null;
+    return days == null ? `${label} 即将到期` : `${label} ${days} 天后到期`;
+  }
+  if (reminder.type === "ZERO_STOCK") return `${label} 库存已经归零`;
+  if (reminder.type === "LOW_STOCK") return `${label} 库存不足`;
+  return label;
+}
+
+function reminderMeta(reminder, item, batch, locationLabels, totalByItem) {
+  if (!item) return "";
+  if (batch) {
+    const location = locationLabels[batch.locationId] || "未知位置";
+    return `${batch.quantity}${item.unit} · ${location}`;
+  }
+  const total = totalByItem.get(item._id) || 0;
+  return `${total}${item.unit}`;
+}
+
+async function listReminderCenter(openid, payload = {}) {
+  const [items, batches, reminders, restocks, locations] = await Promise.all([
+    queryAll(COLLECTIONS.items, { _openid: openid }),
+    queryAll(COLLECTIONS.batches, { _openid: openid }),
+    queryAll(COLLECTIONS.reminders, { _openid: openid }),
+    queryAll(COLLECTIONS.restockItems, { _openid: openid }),
+    queryAll(COLLECTIONS.locations, { _openid: openid }),
+  ]);
+  const itemById = new Map(items.map((item) => [item._id, item]));
+  const batchById = new Map(batches.map((batch) => [batch._id, batch]));
+  const totalByItem = new Map();
+  for (const batch of batches) totalByItem.set(batch.itemId, (totalByItem.get(batch.itemId) || 0) + Number(batch.quantity || 0));
+  const locationLabels = buildLocationMaps(locations).labels;
+  const typeFilter = payload.type ? String(payload.type) : "";
+  const statusFilter = payload.status ? String(payload.status) : "open";
+  const rows = reminders
+    .filter((reminder) => !typeFilter || reminder.type === typeFilter)
+    .filter((reminder) => {
+      if (statusFilter === "all") return true;
+      if (statusFilter === "open") return openReminder(reminder);
+      return reminder.status === statusFilter;
+    })
+    .map((reminder) => {
+      const item = itemById.get(reminder.itemId) || null;
+      const batch = reminder.batchId ? (batchById.get(reminder.batchId) || null) : null;
+      const remaining = batch ? remainingDays(effectiveExpiry(batch)) : null;
+      return {
+        id: reminder._id,
+        reminder,
+        item,
+        batch,
+        itemId: reminder.itemId,
+        batchId: reminder.batchId || null,
+        type: reminder.type,
+        status: reminder.status,
+        typeText: reminderTypeText(reminder.type),
+        statusText: reminderStatusText(reminder.status),
+        title: reminderTitle(reminder, item, batch),
+        meta: reminderMeta(reminder, item, batch, locationLabels, totalByItem),
+        remainingDays: remaining,
+        priority: reminderPriority(reminder),
+        canView: reminder.status === "ACTIVE" || reminder.status === "READ" || reminder.status === "DISMISSED",
+        canDismiss: reminder.status === "ACTIVE" || reminder.status === "READ",
+        canAddRestock: reminder.type === "ZERO_STOCK" && (reminder.status === "ACTIVE" || reminder.status === "READ"),
+      };
+    })
+    .sort((a, b) => a.priority - b.priority || b.reminder.createdAt - a.reminder.createdAt);
+  const restockRows = restocks
+    .filter((restock) => payload.includeClosedRestock ? true : restock.status === "NEEDED")
+    .map((restock) => {
+      const item = itemById.get(restock.itemId) || null;
+      const total = totalByItem.get(restock.itemId) || 0;
+      return {
+        id: restock._id,
+        restock,
+        item,
+        itemId: restock.itemId,
+        status: restock.status,
+        statusText: restock.status === "NEEDED" ? "待补货" : restock.status === "PURCHASED" ? "已购买" : "已移除",
+        title: item ? itemLabel(item) : "未知物品",
+        meta: item ? `${total}${item.unit}` : "",
+        canRecordPurchase: restock.status === "NEEDED",
+        canDismiss: restock.status === "NEEDED",
+      };
+    })
+    .sort((a, b) => b.restock.createdAt - a.restock.createdAt);
+  return {
+    reminders: rows,
+    restocks: restockRows,
+    summary: {
+      activeCount: reminders.filter((reminder) => reminder.status === "ACTIVE").length,
+      readCount: reminders.filter((reminder) => reminder.status === "READ").length,
+      dismissedCount: reminders.filter((reminder) => reminder.status === "DISMISSED").length,
+      resolvedCount: reminders.filter((reminder) => reminder.status === "RESOLVED").length,
+      restockCount: restockRows.filter((row) => row.status === "NEEDED").length,
+    },
+  };
+}
+
 async function getHomeDashboard(openid) {
   const context = await buildInventoryContext(openid);
   const rows = context.items.map((item) => rowFromItem(item, context));
@@ -375,6 +509,7 @@ exports.main = async function main(event) {
     if (event.action === "listInventoryRows") return ok(await listInventoryRows(openid, event.payload || {}));
     if (event.action === "getHomeDashboard") return ok(await getHomeDashboard(openid));
     if (event.action === "getItemDetail") return ok(await getItemDetail(openid, event.payload || {}));
+    if (event.action === "listReminderCenter") return ok(await listReminderCenter(openid, event.payload || {}));
     throw inventoryError("VALIDATION_ERROR", `Unsupported action: ${event.action}`);
   } catch (error) {
     return fail(error);

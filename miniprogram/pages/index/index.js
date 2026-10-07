@@ -53,4 +53,5 @@ Page({
     goConsume() { wx.navigateTo({ url: '/pages/stock-consume/index' }); },
     goEdit() { wx.navigateTo({ url: '/pages/stock-edit/index' }); },
     goInventory() { wx.switchTab ? wx.switchTab({ url: '/pages/inventory/index' }) : wx.navigateTo({ url: '/pages/inventory/index' }); },
+    goReminders() { wx.switchTab ? wx.switchTab({ url: '/pages/reminders/index' }) : wx.navigateTo({ url: '/pages/reminders/index' }); },
 });

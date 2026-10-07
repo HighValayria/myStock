@@ -16,7 +16,10 @@
   <view wx:if="{{loading}}" class="muted">库存加载中...</view>
 
   <view class="alert-panel">
-    <view class="panel-title">重要提醒</view>
+    <view class="panel-head">
+      <view class="panel-title">重要提醒</view>
+      <button class="panel-link" bindtap="goReminders">查看</button>
+    </view>
     <view wx:for="{{alertLines}}" wx:key="*this" class="alert-line">{{item}}</view>
   </view>
 

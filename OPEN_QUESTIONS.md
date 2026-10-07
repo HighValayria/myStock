@@ -20,12 +20,6 @@ The Settings page includes Unit Management, and Item has a free-form `unit` fiel
 
 Current engineering stance: Phase 2 add/edit forms use the existing free-text `Item.unit` string so the core loop is usable. A managed unit list can be revisited with Settings work or a future schema decision, but Phase 2 does not introduce a new units collection.
 
-### Q3: Zero-Stock “Do Not Ask This Cycle” Persistence
-
-The Design Freeze says if the user declines restock after zero stock, this cycle should not ask again. It does not define whether this is represented by a dismissed ZERO_STOCK Reminder, a RestockItem with DISMISSED, or a separate flag.
-
-Can defer to Phase 4. Current proposed implementation remains: use ZERO_STOCK Reminder status DISMISSED for the cycle and create RestockItem only when user chooses yes.
-
 ### Q7: Unknown Expiry Date Compatibility
 
 Phase 2 UX requires the quick path “name + quantity” to save without forcing production date or expiry date. The current V0.1 schema requires `Batch.expiryDate`.
@@ -55,3 +49,9 @@ Page -> Service -> wx.cloud.callFunction -> inventoryWrite -> server-side runTra
 ```
 
 Memory Repository keeps the local mutation path for automated domain tests only. Cloud Repository remains available for ordinary scoped reads and simple repository operations.
+
+### Q3: Zero-Stock “Do Not Ask This Cycle” Persistence
+
+Resolved engineering interpretation for Phase 4: use the ZERO_STOCK Reminder lifecycle for the prompt cycle. If the user ignores the zero-stock prompt, the ZERO_STOCK Reminder becomes DISMISSED and no RestockItem is created. If the user chooses to join restock, a separate RestockItem with status NEEDED is created idempotently. When stock is added again, ZERO_STOCK resolves and any NEEDED RestockItem becomes PURCHASED.
+
+This keeps Reminder and RestockItem separate and does not change the Design Freeze semantics.

@@ -73,4 +73,5 @@ Page({
   goConsume() { wx.navigateTo({ url: '/pages/stock-consume/index' }); },
   goEdit() { wx.navigateTo({ url: '/pages/stock-edit/index' }); },
   goInventory() { (wx as any).switchTab ? (wx as any).switchTab({ url: '/pages/inventory/index' }) : wx.navigateTo({ url: '/pages/inventory/index' }); },
+  goReminders() { (wx as any).switchTab ? (wx as any).switchTab({ url: '/pages/reminders/index' }) : wx.navigateTo({ url: '/pages/reminders/index' }); },
 });

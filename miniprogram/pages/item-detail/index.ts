@@ -36,6 +36,7 @@ interface DetailData {
   txRows: TxRow[];
   emptyBatches: boolean;
   emptyTransactions: boolean;
+  canAddRestock: boolean;
 }
 
 interface DetailPage {
@@ -97,6 +98,7 @@ Page({
     txRows: [],
     emptyBatches: false,
     emptyTransactions: false,
+    canAddRestock: false,
   } as DetailData,
 
   onLoad(this: DetailPage, options: { itemId?: string }) {
@@ -127,6 +129,7 @@ Page({
         txRows: toTxRows(detail),
         emptyBatches: detail.batches.length === 0,
         emptyTransactions: detail.recentTransactions.length === 0,
+        canAddRestock: !detail.restockItem,
       });
     } catch (error) {
       this.setData({ loading: false, error: mapUserError(error) });
@@ -136,4 +139,14 @@ Page({
   goAdd(this: DetailPage) { wx.navigateTo({ url: `/pages/stock-add/index?itemId=${this.data.itemId}` }); },
   goConsume(this: DetailPage) { wx.navigateTo({ url: `/pages/stock-consume/index?itemId=${this.data.itemId}` }); },
   goEdit(this: DetailPage) { wx.navigateTo({ url: `/pages/stock-edit/index?itemId=${this.data.itemId}` }); },
+  async addRestock(this: DetailPage) {
+    try {
+      const { addToRestock } = getPhase2Service();
+      await addToRestock(this.data.itemId);
+      wx.showToast({ title: '已加入待补货', icon: 'success' });
+      await this.loadDetail();
+    } catch (error) {
+      wx.showToast({ title: mapUserError(error), icon: 'none' });
+    }
+  },
 });

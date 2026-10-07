@@ -1,5 +1,5 @@
 import { initCloud } from '../config/cloud';
-import type { AddStockInput, AdjustStockInput, Batch, ConsumeStockInput, ExpiryStatus, InventoryListItem, ItemDetail, StockStatus, Transaction, UpdateBatchInput, UpdateItemInput } from '../models';
+import type { AddStockInput, AdjustStockInput, Batch, ConsumeStockInput, ExpiryStatus, InventoryListItem, Item, ItemDetail, Reminder, RestockItem, StockStatus, Transaction, UpdateBatchInput, UpdateItemInput } from '../models';
 import { createRepositories, type InventoryRepositories } from '../repositories/index';
 import { InventoryService } from './inventory-service';
 import { CloudFunctionInventoryMutationClient } from './inventory-mutation-client';
@@ -93,6 +93,57 @@ export interface Phase3ItemDetail extends Omit<ItemDetail, 'batches' | 'recentTr
   batches: Phase3Batch[];
   recentTransactions: Transaction[];
   locationLabels?: Record<string, string>;
+}
+
+export interface Phase4ReminderRow {
+  id: string;
+  reminder: Reminder;
+  item: Item | null;
+  batch: Batch | null;
+  itemId: string;
+  batchId: string | null;
+  type: Reminder['type'];
+  status: Reminder['status'];
+  typeText: string;
+  statusText: string;
+  title: string;
+  meta: string;
+  remainingDays: number | null;
+  priority: number;
+  canView: boolean;
+  canDismiss: boolean;
+  canAddRestock: boolean;
+}
+
+export interface Phase4RestockRow {
+  id: string;
+  restock: RestockItem;
+  item: Item | null;
+  itemId: string;
+  status: RestockItem['status'];
+  statusText: string;
+  title: string;
+  meta: string;
+  canRecordPurchase: boolean;
+  canDismiss: boolean;
+}
+
+export interface Phase4ReminderCenter {
+  reminders: Phase4ReminderRow[];
+  restocks: Phase4RestockRow[];
+  summary: {
+    activeCount: number;
+    readCount: number;
+    dismissedCount: number;
+    resolvedCount: number;
+    restockCount: number;
+  };
+}
+
+export interface Phase4ReminderQuery {
+  type?: '' | Reminder['type'];
+  status?: 'open' | 'all' | Reminder['status'];
+  includeClosedRestock?: boolean;
 }
 
 let cachedContext: Phase2Context | null = null;
@@ -217,6 +268,14 @@ export async function getItemDetail(itemId: string): Promise<Phase3ItemDetail> {
   return callCloudFunction<Phase3ItemDetail>('inventoryRead', 'getItemDetail', { itemId });
 }
 
+export async function listReminderCenter(options: Phase4ReminderQuery = {}): Promise<Phase4ReminderCenter> {
+  return callCloudFunction<Phase4ReminderCenter>('inventoryRead', 'listReminderCenter', {
+    type: options.type || '',
+    status: options.status || 'open',
+    includeClosedRestock: Boolean(options.includeClosedRestock),
+  });
+}
+
 export async function addStock(input: AddStockInput) {
   const context = await getPhase2Context();
   return context.inventory.addStock(input);
@@ -238,4 +297,20 @@ export async function updateItem(itemId: string, patch: UpdateItemInput) {
 
 export async function updateBatch(batchId: string, patch: UpdateBatchInput) {
   return callCloudFunction('inventoryWrite', 'updateBatch', { batchId, patch });
+}
+
+export async function markReminderRead(reminderId: string) {
+  return callCloudFunction('inventoryWrite', 'markReminderRead', { reminderId });
+}
+
+export async function dismissReminder(reminderId: string) {
+  return callCloudFunction('inventoryWrite', 'dismissReminder', { reminderId });
+}
+
+export async function addToRestock(itemId: string) {
+  return callCloudFunction('inventoryWrite', 'addToRestock', { itemId });
+}
+
+export async function dismissRestock(restockId: string) {
+  return callCloudFunction('inventoryWrite', 'dismissRestock', { restockId });
 }

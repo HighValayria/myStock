@@ -11,8 +11,13 @@ exports.createLocation = createLocation;
 exports.listInventoryRows = listInventoryRows;
 exports.getHomeDashboard = getHomeDashboard;
 exports.getItemDetail = getItemDetail;
+exports.listReminderCenter = listReminderCenter;
 exports.addStock = addStock;
 exports.consumeStock = consumeStock;
+exports.markReminderRead = markReminderRead;
+exports.dismissReminder = dismissReminder;
+exports.addToRestock = addToRestock;
+exports.dismissRestock = dismissRestock;
 const cloud_1 = require("../config/cloud");
 const index_1 = require("../repositories/index");
 const inventory_service_1 = require("./inventory-service");
@@ -137,6 +142,13 @@ async function getHomeDashboard() {
 async function getItemDetail(itemId) {
     return callCloudFunction('inventoryRead', 'getItemDetail', { itemId });
 }
+async function listReminderCenter(options = {}) {
+    return callCloudFunction('inventoryRead', 'listReminderCenter', {
+        type: options.type || '',
+        status: options.status || 'open',
+        includeClosedRestock: Boolean(options.includeClosedRestock),
+    });
+}
 async function addStock(input) {
     const context = await getPhase2Context();
     return context.inventory.addStock(input);
@@ -154,4 +166,16 @@ async function updateItem(itemId, patch) {
 }
 async function updateBatch(batchId, patch) {
     return callCloudFunction('inventoryWrite', 'updateBatch', { batchId, patch });
+}
+async function markReminderRead(reminderId) {
+    return callCloudFunction('inventoryWrite', 'markReminderRead', { reminderId });
+}
+async function dismissReminder(reminderId) {
+    return callCloudFunction('inventoryWrite', 'dismissReminder', { reminderId });
+}
+async function addToRestock(itemId) {
+    return callCloudFunction('inventoryWrite', 'addToRestock', { itemId });
+}
+async function dismissRestock(restockId) {
+    return callCloudFunction('inventoryWrite', 'dismissRestock', { restockId });
 }

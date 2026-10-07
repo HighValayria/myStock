@@ -2,7 +2,9 @@
 
 ## Current Phase
 
-Phase 3 implementation is code-complete for the formal Home and Inventory Browsing surface. Automated verification passes. WeChat DevTools manual UI acceptance for TC-P3-001 through TC-P3-018 is pending after deploying the updated `inventoryRead` cloud function.
+Phase 4 implementation is code-complete for Reminder System and Restock. Automated verification passes. WeChat DevTools manual UI acceptance for TC-P4-001 through TC-P4-020 is pending after deploying the updated `inventoryRead` and `inventoryWrite` cloud functions.
+
+Phase 3 implementation remains code-complete for the formal Home and Inventory Browsing surface. WeChat DevTools manual UI acceptance for TC-P3-001 through TC-P3-018 is still pending after deploying the updated `inventoryRead` cloud function.
 
 Phase 0 / Phase 1 CloudBase integration remains accepted for continuation, with two-account isolation deferred until a second authorized WeChat developer account is available.
 
@@ -23,7 +25,15 @@ Phase 2 remains code-complete for the Add / Consume / Edit loop. TC-P2-009 Undo 
 - Phase 3 inventory browse page with search, category filter, location filter using Batch.locationId, expiry status filter, stock status filter, sorting, list mode, and horizontal table mode.
 - Phase 3 item detail page with total stock aggregation, per-batch display, recent transaction display, and Add / Consume / Edit entry points carrying current Item context.
 - Updated `inventoryRead` cloud function aggregates Phase 3 read models server-side using current OPENID and avoids page-level N+1 reads.
-- Lightweight placeholder tabs for Analysis, Reminders, and Settings; no Phase 4/5/6 functionality implemented.
+- Phase 4 reminder center replaces the Reminders placeholder tab with real Reminder and RestockItem views.
+- `inventoryRead.listReminderCenter` aggregates Reminder rows, RestockItem rows, Item, Batch, and Location labels server-side.
+- `inventoryWrite` supports `markReminderRead`, `dismissReminder`, `addToRestock`, and `dismissRestock`.
+- Reminder viewing keeps lifecycle semantics: ACTIVE becomes READ; READ, DISMISSED, and RESOLVED are not revived by viewing.
+- Reminder ignoring changes ACTIVE/READ to DISMISSED for the current cycle only.
+- RestockItem remains separate from Reminder: ZERO_STOCK does not automatically create NEEDED unless the user chooses to join restock.
+- Item detail now has a manual Join Restock entry. Restock “record purchase” reuses the Phase 2 Add Stock page with current Item context.
+- Home important reminder panel links to the real reminder center.
+- Lightweight placeholder tabs remain for Analysis and Settings only; no Phase 5/6 functionality implemented.
 
 ## Automated Verification
 
@@ -36,16 +46,19 @@ npm test
 Latest result:
 
 ```text
-18 tests passed
+34 tests passed
 ```
 
-Coverage includes Phase 1/2 regression plus Phase 3 display helper assertions for localized derived states, hidden unknown-expiry compatibility values, and transaction labels.
+Coverage includes Phase 1/2/3 regression plus Phase 4 Reminder and Restock lifecycle tests T-P4-A01 through T-P4-A16.
 
 Additional static verification:
 
 ```bash
 node --check cloudfunctions/inventoryRead/index.js
-node JSON parse check for app/page configs
+node --check cloudfunctions/inventoryWrite/index.js
+node --check miniprogram/pages/reminders/index.js
+node --check miniprogram/pages/item-detail/index.js
+node --check miniprogram/services/phase2-ui-service.js
 ```
 
 ## Manual Verification
@@ -63,6 +76,10 @@ Previously verified in WeChat DevTools against real CloudBase:
 - Multi-batch FEFO consume.
 - Same-batch merge and different-expiry no-merge rules.
 - Dev data cleanup.
+
+Pending Phase 4 manual UI acceptance in WeChat DevTools:
+
+- TC-P4-001 through TC-P4-020.
 
 Pending Phase 3 manual UI acceptance in WeChat DevTools:
 
@@ -88,4 +105,4 @@ Deferred manual verification:
 
 ## Phase 4 Readiness
 
-Do not start Phase 4 until TC-P3-001 through TC-P3-018 and the listed Phase 2 regression checks pass in WeChat DevTools. TC-P2-009 remains blocked by product definition and does not count as a code failure.
+Phase 4 has been started and code-completed per explicit user direction, even though Phase 3 manual acceptance remains pending. Do not start Phase 5 until Phase 4 manual acceptance and the listed Phase 2/3 regression checks pass in WeChat DevTools. TC-P2-009 remains blocked by product definition and does not count as a code failure.

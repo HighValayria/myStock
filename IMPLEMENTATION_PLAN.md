@@ -246,6 +246,8 @@ Not handled yet:
 
 ## Phase 4: Reminder System and Restock
 
+Status: Code complete for Reminder center, Reminder lifecycle actions, separate RestockItem list, item-detail restock entry, home reminder link, and Phase 4 automated lifecycle coverage. Manual UI acceptance TC-P4-001 through TC-P4-020 remains pending in WeChat DevTools after deploying updated `inventoryRead` and `inventoryWrite` cloud functions.
+
 Goal:
 
 - Implement Reminder lifecycle and separate RestockItem lifecycle.
@@ -253,13 +255,14 @@ Goal:
 Files:
 
 - `miniprogram/pages/reminders/*`
-- `miniprogram/components/reminder-card/*`
 - `miniprogram/services/reminder-service.ts`
-- `miniprogram/repositories/reminder-repo.ts`
-- `miniprogram/repositories/restock-repo.ts`
-- `cloudfunctions/reminderRecompute/*`
-- `tests/domain/reminder-state.test.ts`
-- `tests/acceptance/scenario-e-to-g.md`
+- `miniprogram/services/phase2-ui-service.ts`
+- `miniprogram/pages/item-detail/*`
+- `miniprogram/pages/index/*`
+- `cloudfunctions/inventoryRead/*`
+- `cloudfunctions/inventoryWrite/*`
+- `tests/run-tests.ts`
+- `docs/TEST_REPORTS/phase_4.md`
 
 Data changes:
 
@@ -275,21 +278,27 @@ Core functions:
 - `resolveRestock`
 - `markReminderRead`
 - `dismissReminder`
+- `listReminderCenter`
+- `dismissRestock`
 
 UI:
 
-- Reminder page grouped by needs attention, low-stock, restock.
+- Reminder page grouped by inventory reminders and separate restock items.
 - View / ignore actions.
-- Zero-stock prompt to add to restock.
+- Zero-stock action to add to restock.
 - Restock completion after new stock purchase.
+- Record purchase from restock reuses Phase 2 add stock with `itemId`.
 
 Tests:
 
+- T-P4-A01 through T-P4-A16 automated lifecycle tests.
 - Expiring dismissed reminders do not repeat in same cycle.
 - Expiring resolves when batch is consumed or moved safe.
+- Expiring transitions to Expired by resolving the old reminder and creating an EXPIRED reminder.
 - Expired does not delete or zero inventory.
-- Low-stock resolves when quantity rises.
+- Low-stock resolves when quantity rises and creates a new reminder after a later threshold crossing.
 - Zero-stock can create RestockItem; new stock marks it PURCHASED.
+- Restock add is idempotent; restock dismiss removes it from the NEEDED list.
 
 Acceptance:
 

@@ -1,6 +1,7 @@
-import type { Batch, ExpiryStatus, Item, Reminder, ReminderRecomputeResult, ReminderRecomputeScope, ReminderType, StockStatus } from '../models';
+import type { Batch, ExpiryStatus, Item, Reminder, ReminderRecomputeResult, ReminderRecomputeScope, ReminderType, RestockItem, StockStatus } from '../models';
 import { SCHEMA_VERSION } from '../config/collections';
 import { getEffectiveExpiryDate, getRemainingDays } from '../utils/date';
+import { InventoryError } from '../utils/errors';
 import { createId } from '../utils/id';
 import type { InventoryRepositories as RepositoryBundle } from '../repositories';
 
@@ -83,10 +84,44 @@ export class ReminderService {
   }
 
   async markReminderRead(reminderId: string): Promise<Reminder> {
+    const reminder = await this.repos.reminders.getById(this.options.userId, reminderId);
+    if (!reminder) throw new InventoryError('NOT_FOUND', `Reminder not found: ${reminderId}`);
+    if (reminder.status !== 'ACTIVE') return reminder;
     return this.repos.reminders.update(this.options.userId, reminderId, {
       status: 'READ',
       readAt: this.now().getTime(),
       updatedAt: this.now().getTime(),
+    });
+  }
+
+  async addToRestock(itemId: string, note = ''): Promise<RestockItem> {
+    const item = await this.repos.items.getById(this.options.userId, itemId);
+    if (!item) throw new InventoryError('NOT_FOUND', `Item not found: ${itemId}`);
+    const existing = await this.repos.restockItems.findNeededByItem(this.options.userId, itemId);
+    if (existing) return existing;
+    const now = this.now().getTime();
+    return this.repos.restockItems.create({
+      _id: createId('restock'),
+      _openid: this.options.userId,
+      schemaVersion: SCHEMA_VERSION,
+      itemId,
+      status: 'NEEDED',
+      createdAt: now,
+      updatedAt: now,
+      resolvedAt: null,
+      note,
+    });
+  }
+
+  async dismissRestock(restockId: string): Promise<RestockItem> {
+    const restock = (await this.repos.restockItems.listByUser(this.options.userId)).find((item) => item._id === restockId);
+    if (!restock) throw new InventoryError('NOT_FOUND', `Restock item not found: ${restockId}`);
+    if (restock.status !== 'NEEDED') return restock;
+    const now = this.now().getTime();
+    return this.repos.restockItems.update(this.options.userId, restockId, {
+      status: 'DISMISSED',
+      resolvedAt: now,
+      updatedAt: now,
     });
   }
 

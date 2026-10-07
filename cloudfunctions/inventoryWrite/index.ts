@@ -21,7 +21,17 @@ type TxReason = 'PURCHASE' | 'USED' | 'EXPIRED' | 'DAMAGED' | 'GIFT' | 'MANUAL_C
 type ReminderType = 'EXPIRING' | 'EXPIRED' | 'LOW_STOCK' | 'ZERO_STOCK';
 type ReminderStatus = 'ACTIVE' | 'READ' | 'DISMISSED' | 'RESOLVED';
 
-type MutationAction = 'addStock' | 'consumeStock' | 'adjustStock' | 'updateItem' | 'updateBatch' | 'cleanupDevItem';
+type MutationAction =
+  | 'addStock'
+  | 'consumeStock'
+  | 'adjustStock'
+  | 'updateItem'
+  | 'updateBatch'
+  | 'markReminderRead'
+  | 'dismissReminder'
+  | 'addToRestock'
+  | 'dismissRestock'
+  | 'cleanupDevItem';
 
 interface MutationEvent {
   action: MutationAction;
@@ -95,6 +105,18 @@ interface ReminderDoc {
   readAt?: number | null;
   dismissedAt?: number | null;
   resolvedAt?: number | null;
+}
+
+interface RestockDoc {
+  _id: string;
+  _openid: string;
+  schemaVersion: number;
+  itemId: string;
+  status: 'NEEDED' | 'PURCHASED' | 'DISMISSED';
+  createdAt: number;
+  updatedAt: number;
+  resolvedAt?: number | null;
+  note?: string;
 }
 
 function ok(data: unknown) {
@@ -601,6 +623,61 @@ async function updateBatch(openid: string, input: any) {
   });
 }
 
+async function markReminderRead(openid: string, input: any) {
+  assertString(input.reminderId, 'reminderId');
+  return db.runTransaction(async (tx: any) => {
+    const reminder = await txGet<ReminderDoc>(tx, COLLECTIONS.reminders, input.reminderId, openid);
+    if (reminder.status !== 'ACTIVE') return reminder;
+    const timestamp = now();
+    await txUpdate(tx, COLLECTIONS.reminders, reminder._id, { status: 'READ', readAt: timestamp, updatedAt: timestamp });
+    return { ...reminder, status: 'READ', readAt: timestamp, updatedAt: timestamp };
+  });
+}
+
+async function dismissReminder(openid: string, input: any) {
+  assertString(input.reminderId, 'reminderId');
+  return db.runTransaction(async (tx: any) => {
+    const reminder = await txGet<ReminderDoc>(tx, COLLECTIONS.reminders, input.reminderId, openid);
+    if (reminder.status !== 'ACTIVE' && reminder.status !== 'READ') return reminder;
+    const timestamp = now();
+    await txUpdate(tx, COLLECTIONS.reminders, reminder._id, { status: 'DISMISSED', dismissedAt: timestamp, updatedAt: timestamp });
+    return { ...reminder, status: 'DISMISSED', dismissedAt: timestamp, updatedAt: timestamp };
+  });
+}
+
+async function addToRestock(openid: string, input: any) {
+  assertString(input.itemId, 'itemId');
+  const item = await queryOne<ItemDoc>(COLLECTIONS.items, { _id: input.itemId, _openid: openid });
+  if (!item) throw inventoryError('NOT_FOUND', `Item not found: ${input.itemId}`);
+  const existing = await queryOne<RestockDoc>(COLLECTIONS.restockItems, { _openid: openid, itemId: input.itemId, status: 'NEEDED' });
+  if (existing) return existing;
+  const timestamp = now();
+  const restock: RestockDoc = {
+    _id: createId('restock'),
+    _openid: openid,
+    schemaVersion: SCHEMA_VERSION,
+    itemId: input.itemId,
+    status: 'NEEDED',
+    createdAt: timestamp,
+    updatedAt: timestamp,
+    resolvedAt: null,
+    note: input.note ?? '',
+  };
+  await db.collection(COLLECTIONS.restockItems).add({ data: restock });
+  return restock;
+}
+
+async function dismissRestock(openid: string, input: any) {
+  assertString(input.restockId, 'restockId');
+  return db.runTransaction(async (tx: any) => {
+    const restock = await txGet<RestockDoc>(tx, COLLECTIONS.restockItems, input.restockId, openid);
+    if (restock.status !== 'NEEDED') return restock;
+    const timestamp = now();
+    await txUpdate(tx, COLLECTIONS.restockItems, restock._id, { status: 'DISMISSED', resolvedAt: timestamp, updatedAt: timestamp });
+    return { ...restock, status: 'DISMISSED', resolvedAt: timestamp, updatedAt: timestamp };
+  });
+}
+
 async function cleanupDevItem(openid: string, input: any) {
   assertString(input.itemId, 'itemId');
   const item = await queryOne<ItemDoc>(COLLECTIONS.items, { _id: input.itemId, _openid: openid });
@@ -632,6 +709,10 @@ export async function main(event: MutationEvent) {
     if (event.action === 'adjustStock') return ok(await adjustStock(openid, event.payload));
     if (event.action === 'updateItem') return ok(await updateItem(openid, event.payload));
     if (event.action === 'updateBatch') return ok(await updateBatch(openid, event.payload));
+    if (event.action === 'markReminderRead') return ok(await markReminderRead(openid, event.payload));
+    if (event.action === 'dismissReminder') return ok(await dismissReminder(openid, event.payload));
+    if (event.action === 'addToRestock') return ok(await addToRestock(openid, event.payload));
+    if (event.action === 'dismissRestock') return ok(await dismissRestock(openid, event.payload));
     if (event.action === 'cleanupDevItem') return ok(await cleanupDevItem(openid, event.payload));
     throw inventoryError('VALIDATION_ERROR', `Unsupported action: ${event.action}`);
   } catch (error) {

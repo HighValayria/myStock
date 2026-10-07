@@ -1,1 +1,57 @@
-<view class="placeholder"><view class="title">提醒</view><view class="text">完整提醒中心将在 Phase 4 实现；首页当前只展示提醒摘要。</view></view>
+<scroll-view class="page" scroll-y>
+  <view class="hero">
+    <view>
+      <view class="eyebrow">提醒中心</view>
+      <view class="title">需要处理</view>
+    </view>
+    <view class="summary-pill">{{summary.activeCount}} 待处理</view>
+  </view>
+
+  <view wx:if="{{error}}" class="error-block">
+    <view>提醒加载失败</view>
+    <view class="error-detail">{{error}}</view>
+    <button size="mini" bindtap="loadData">重新加载</button>
+  </view>
+
+  <view class="filter-row">
+    <button wx:for="{{filters}}" wx:key="key" class="filter {{filterType === item.key ? 'active' : ''}}" data-type="{{item.key}}" bindtap="changeType">{{item.label}}</button>
+  </view>
+
+  <view class="status-row">
+    <button class="status-filter {{statusFilter === 'open' ? 'active' : ''}}" data-status="open" bindtap="changeStatus">未解决</button>
+    <button class="status-filter {{statusFilter === 'ACTIVE' ? 'active' : ''}}" data-status="ACTIVE" bindtap="changeStatus">待处理</button>
+    <button class="status-filter {{statusFilter === 'READ' ? 'active' : ''}}" data-status="READ" bindtap="changeStatus">已查看</button>
+    <button class="status-filter {{statusFilter === 'DISMISSED' ? 'active' : ''}}" data-status="DISMISSED" bindtap="changeStatus">已忽略</button>
+    <button class="status-filter {{statusFilter === 'all' ? 'active' : ''}}" data-status="all" bindtap="changeStatus">全部</button>
+  </view>
+
+  <view wx:if="{{loading}}" class="muted">提醒加载中...</view>
+
+  <view class="section-title">库存提醒</view>
+  <view wx:if="{{emptyReminders && !loading}}" class="empty">当前没有符合条件的提醒</view>
+  <view wx:for="{{reminders}}" wx:key="id" class="reminder-card status-{{item.status}}">
+    <view class="card-top">
+      <view class="card-title">{{item.title}}</view>
+      <text class="badge">{{item.statusText}}</text>
+    </view>
+    <view class="card-meta">{{item.typeText}} · {{item.meta}}</view>
+    <view class="card-actions">
+      <button wx:if="{{item.canView}}" size="mini" class="mini primary" data-id="{{item.id}}" data-item-id="{{item.itemId}}" bindtap="viewReminder">查看</button>
+      <button wx:if="{{item.canDismiss}}" size="mini" class="mini quiet" data-id="{{item.id}}" bindtap="dismissReminder">忽略</button>
+      <button wx:if="{{item.canAddRestock}}" size="mini" class="mini restock" data-item-id="{{item.itemId}}" bindtap="addRestock">加入待补货</button>
+    </view>
+  </view>
+
+  <view class="section-title restock-title">待补货</view>
+  <view wx:if="{{emptyRestocks && !loading}}" class="empty">暂无待补货物品</view>
+  <view wx:for="{{restocks}}" wx:key="id" class="restock-row">
+    <view>
+      <view class="restock-name">{{item.title}}</view>
+      <view class="card-meta">{{item.statusText}} · {{item.meta}}</view>
+    </view>
+    <view class="restock-actions">
+      <button wx:if="{{item.canRecordPurchase}}" size="mini" class="mini primary" data-item-id="{{item.itemId}}" bindtap="recordPurchase">记录购买</button>
+      <button wx:if="{{item.canDismiss}}" size="mini" class="mini quiet" data-id="{{item.id}}" bindtap="dismissRestock">移除</button>
+    </view>
+  </view>
+</scroll-view>
