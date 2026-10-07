@@ -1,4 +1,4 @@
-<scroll-view class="page" scroll-y refresher-enabled bindrefresherrefresh="loadRows">
+<view class="page">
   <view class="header">
     <view>
       <view class="title">库存一览</view>
@@ -56,4 +56,4 @@
       </view>
     </view>
   </scroll-view>
-</scroll-view>
+</view>

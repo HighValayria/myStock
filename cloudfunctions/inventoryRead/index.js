@@ -354,7 +354,8 @@ async function listReminderCenter(openid, payload = {}) {
   const typeFilter = payload.type ? String(payload.type) : "";
   const statusFilter = payload.status ? String(payload.status) : "open";
   const neededRestockItemIds = new Set(restocks.filter((restock) => restock.status === "NEEDED").map((restock) => restock.itemId));
-  const rows = reminders
+  const visibleReminderDocs = reminders.filter((reminder) => !(reminder.type === "ZERO_STOCK" && neededRestockItemIds.has(reminder.itemId)));
+  const rows = visibleReminderDocs
     .filter((reminder) => !typeFilter || reminder.type === typeFilter)
     .filter((reminder) => {
       if (statusFilter === "all") return true;
@@ -409,10 +410,10 @@ async function listReminderCenter(openid, payload = {}) {
     reminders: rows,
     restocks: restockRows,
     summary: {
-      activeCount: reminders.filter((reminder) => reminder.status === "ACTIVE").length,
-      readCount: reminders.filter((reminder) => reminder.status === "READ").length,
-      dismissedCount: reminders.filter((reminder) => reminder.status === "DISMISSED").length,
-      resolvedCount: reminders.filter((reminder) => reminder.status === "RESOLVED").length,
+      activeCount: visibleReminderDocs.filter((reminder) => reminder.status === "ACTIVE").length,
+      readCount: visibleReminderDocs.filter((reminder) => reminder.status === "READ").length,
+      dismissedCount: visibleReminderDocs.filter((reminder) => reminder.status === "DISMISSED").length,
+      resolvedCount: visibleReminderDocs.filter((reminder) => reminder.status === "RESOLVED").length,
       restockCount: restockRows.filter((row) => row.status === "NEEDED").length,
     },
   };

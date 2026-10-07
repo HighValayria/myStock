@@ -11,6 +11,21 @@ const emptySummary = {
 function getPhase2Service() {
     return require('../../services/phase2-ui-service');
 }
+function hideRestockedZeroReminders(center) {
+    const neededRestockItemIds = new Set(center.restocks.filter((restock) => restock.status === 'NEEDED').map((restock) => restock.itemId));
+    const reminders = center.reminders.filter((reminder) => !(reminder.type === 'ZERO_STOCK' && neededRestockItemIds.has(reminder.itemId)));
+    return {
+        ...center,
+        reminders,
+        summary: {
+            ...center.summary,
+            activeCount: reminders.filter((reminder) => reminder.status === 'ACTIVE').length,
+            readCount: reminders.filter((reminder) => reminder.status === 'READ').length,
+            dismissedCount: reminders.filter((reminder) => reminder.status === 'DISMISSED').length,
+            resolvedCount: reminders.filter((reminder) => reminder.status === 'RESOLVED').length,
+        },
+    };
+}
 Page({
     data: {
         loading: false,
@@ -37,7 +52,7 @@ Page({
         this.setData({ loading: true, error: '' });
         try {
             const { listReminderCenter } = getPhase2Service();
-            const center = await listReminderCenter({ type: this.data.filterType, status: this.data.statusFilter });
+            const center = hideRestockedZeroReminders(await listReminderCenter({ type: this.data.filterType, status: this.data.statusFilter }));
             this.setData({
                 loading: false,
                 reminders: center.reminders,

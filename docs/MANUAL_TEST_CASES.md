@@ -1175,11 +1175,11 @@ EXPIRED → ACTIVE
 RestockItem.status = NEEDED
 ```
 
-Reminder 与 RestockItem 均存在，但职责不同。
+Reminder 与 RestockItem 在数据层仍是不同概念。
 
 补充预期：
 
-- 加入待补货成功后，同一条零库存提醒不再显示“加入待补货”按钮；
+- 加入待补货成功后，同一条零库存提醒不再出现在提醒列表；
 - 待补货区显示该 Item；
 - 不创建重复 NEEDED。
 
