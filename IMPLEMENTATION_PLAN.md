@@ -312,41 +312,49 @@ Not handled yet:
 
 ## Phase 5: Analytics Page
 
+Status: Code complete for V0.1 Analytics page, StatisticsService aggregation, `inventoryRead.getAnalysisOverview`, and Phase 5 automated statistics coverage. Manual UI acceptance TC-P5-001 through TC-P5-010 remains pending in WeChat DevTools after deploying the updated `inventoryRead` cloud function. Inventory value is intentionally shown as unavailable until `Batch.purchasePrice` semantics are frozen.
+
 Goal:
 
 - Add V0.1 analytics without expanding into complex BI.
 
 Files:
 
-- `miniprogram/pages/analytics/*`
-- `miniprogram/charts/echarts-adapter/*`
+- `miniprogram/pages/analysis/*`
 - `miniprogram/services/statistics-service.ts`
-- `tests/services/statistics-service.test.ts`
+- `miniprogram/services/phase2-ui-service.ts`
+- `cloudfunctions/inventoryRead/*`
+- `tests/run-tests.ts`
+- `docs/TEST_REPORTS/phase_5.md`
 
 Data changes:
 
 - No new master collections.
-- Read from existing items, batches, transactions, categories.
+- Read from existing items, batches, transactions, categories, reminders, and restock items.
 
 Core functions:
 
-- `getCategorySkuShare`
-- `getExpiryDistribution`
-- `getInventoryTrend`
-- `getCurrentInventoryValue`
+- `getAnalysisOverview`
+- Category SKU distribution by Item count.
+- Expiry distribution by positive Batch count.
+- Stock trend by positive SKU count.
+- Transaction trend by ADD / CONSUME operation count.
+- Inventory value availability summary only; no value total until purchase price semantics are defined.
 
 UI:
 
-- Current counts: item count, batch count, optional inventory value.
-- Category SKU ratio chart.
-- Last 30 days inventory change trend.
-- Expiry distribution.
+- Summary cards for SKU, Batch, expiry risk, and stock risk.
+- Time range switch for 7 days / 30 days / 90 days / all.
+- Lightweight CSS charts for category SKU ratio, expiry distribution, stock trend, and operation trend.
+- Explicit empty states and missing price-semantics explanation.
 
 Tests:
 
+- T-P5-A01 through T-P5-A10 automated tests.
 - Category share counts SKU/items, not incompatible unit quantities.
-- Inventory value only appears when purchase price exists.
-- Trend uses transactions, not direct quantity guesses.
+- Expiry distribution counts positive Batches only.
+- Trend uses positive SKU counts and Transaction operation counts, not global mixed quantities.
+- Inventory value remains blocked when purchase price semantics are undefined.
 
 Acceptance:
 

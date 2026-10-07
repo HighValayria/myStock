@@ -20,6 +20,14 @@ const PAGE_SIZE = 100;
 const RECENT_TX_LIMIT = 300;
 const DETAIL_TX_LIMIT = 10;
 const UNKNOWN_EXPIRY_DATE = "9999-12-31";
+const ANALYSIS_EXPIRY_BUCKETS = [
+  { key: "EXPIRED", label: "已过期" },
+  { key: "DAYS_0_7", label: "7 天内" },
+  { key: "DAYS_8_30", label: "8-30 天" },
+  { key: "DAYS_31_90", label: "31-90 天" },
+  { key: "DAYS_90_PLUS", label: "90 天以上" },
+  { key: "NO_EXPIRY", label: "无到期日" },
+];
 
 function ok(data) {
   return { ok: true, data };
@@ -50,6 +58,23 @@ function todayText(today = new Date()) {
   return `${today.getUTCFullYear()}-${String(today.getUTCMonth() + 1).padStart(2, "0")}-${String(today.getUTCDate()).padStart(2, "0")}`;
 }
 
+function addDays(dateText, diff) {
+  return todayText(new Date(dateMs(dateText) + diff * MS_PER_DAY));
+}
+
+function dayKeyFromMs(value) {
+  return todayText(new Date(value));
+}
+
+function endOfDayMs(dateText) {
+  return dateMs(dateText) + MS_PER_DAY - 1;
+}
+
+function safePercent(count, total) {
+  if (total <= 0 || count <= 0) return 0;
+  return Math.round((count / total) * 1000) / 10;
+}
+
 function effectiveExpiry(batch) {
   if (!batch.openedExpiryDate) return batch.expiryDate;
   return dateMs(batch.openedExpiryDate) < dateMs(batch.expiryDate) ? batch.openedExpiryDate : batch.expiryDate;
@@ -75,6 +100,17 @@ function stockStatus(total, threshold) {
   if (total === 0) return "ZERO";
   if (threshold == null) return "NORMAL";
   return total <= threshold ? "LOW" : "NORMAL";
+}
+
+function normalizeAnalysisRange(value) {
+  return value === "7d" || value === "30d" || value === "90d" || value === "all" ? value : "30d";
+}
+
+function analysisRangeLabel(range) {
+  if (range === "7d") return "近 7 天";
+  if (range === "30d") return "近 30 天";
+  if (range === "90d") return "近 90 天";
+  return "全部";
 }
 
 function compareBatch(a, b) {
@@ -460,6 +496,170 @@ async function getHomeDashboard(openid) {
   };
 }
 
+function buildAnalysisDateRange(range, today, transactions) {
+  if (range !== "all") {
+    const days = range === "7d" ? 7 : range === "90d" ? 90 : 30;
+    return Array.from({ length: days }, (_, index) => addDays(today, index - days + 1));
+  }
+  const firstTxDate = transactions.length
+    ? transactions.reduce((first, tx) => Math.min(first, tx.createdAt), transactions[0].createdAt)
+    : dateMs(today);
+  const start = dayKeyFromMs(firstTxDate);
+  const dayCount = Math.max(1, Math.floor((dateMs(today) - dateMs(start)) / MS_PER_DAY) + 1);
+  return Array.from({ length: dayCount }, (_, index) => addDays(start, index));
+}
+
+function analysisTotalsByItem(items, batches) {
+  const totals = new Map(items.map((item) => [item._id, 0]));
+  for (const batch of batches) totals.set(batch.itemId, (totals.get(batch.itemId) || 0) + Number(batch.quantity || 0));
+  return totals;
+}
+
+function buildCategorySkuDistribution(items, categories) {
+  const names = new Map(categories.map((category) => [category._id, category.name]));
+  const counts = new Map();
+  for (const item of items) {
+    const key = item.categoryId || "__uncategorized__";
+    counts.set(key, (counts.get(key) || 0) + 1);
+  }
+  return Array.from(counts.entries())
+    .map(([key, count]) => ({
+      key,
+      label: key === "__uncategorized__" ? "未分类" : names.get(key) || "未分类",
+      count,
+      percent: safePercent(count, items.length),
+    }))
+    .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label, "zh-Hans-CN"));
+}
+
+function analysisExpiryBucket(batch, today) {
+  const expiryDate = effectiveExpiry(batch);
+  if (!expiryDate || expiryDate === UNKNOWN_EXPIRY_DATE) return "NO_EXPIRY";
+  const days = remainingDays(expiryDate, new Date(`${today}T00:00:00.000Z`));
+  if (days < 0) return "EXPIRED";
+  if (days <= 7) return "DAYS_0_7";
+  if (days <= 30) return "DAYS_8_30";
+  if (days <= 90) return "DAYS_31_90";
+  return "DAYS_90_PLUS";
+}
+
+function buildExpiryBatchDistribution(batches, today) {
+  const positiveBatches = batches.filter((batch) => Number(batch.quantity || 0) > 0);
+  const counts = new Map(ANALYSIS_EXPIRY_BUCKETS.map((bucket) => [bucket.key, 0]));
+  for (const batch of positiveBatches) {
+    const key = analysisExpiryBucket(batch, today);
+    counts.set(key, (counts.get(key) || 0) + 1);
+  }
+  return ANALYSIS_EXPIRY_BUCKETS.map((bucket) => {
+    const count = counts.get(bucket.key) || 0;
+    return { ...bucket, count, percent: safePercent(count, positiveBatches.length) };
+  });
+}
+
+function analysisStockSkuCountAt(items, batches, transactions, dateText) {
+  const totals = analysisTotalsByItem(items, batches);
+  const pointEnd = endOfDayMs(dateText);
+  for (const tx of transactions) {
+    if (tx.createdAt <= pointEnd) continue;
+    totals.set(tx.itemId, (totals.get(tx.itemId) || 0) - Number(tx.quantity || 0));
+  }
+  return items.filter((item) => (totals.get(item._id) || 0) > 0).length;
+}
+
+function analysisTransactionCountsByDay(transactions, dates) {
+  const dateSet = new Set(dates);
+  const counts = new Map(dates.map((date) => [date, { add: 0, consume: 0 }]));
+  const seen = new Set();
+  for (const tx of transactions) {
+    if (tx.type !== "ADD" && tx.type !== "CONSUME") continue;
+    const date = dayKeyFromMs(tx.createdAt);
+    if (!dateSet.has(date)) continue;
+    const operationKey = `${tx.type}:${tx.operationId || tx._id}`;
+    if (seen.has(operationKey)) continue;
+    seen.add(operationKey);
+    const bucket = counts.get(date);
+    if (!bucket) continue;
+    if (tx.type === "ADD") bucket.add += 1;
+    else bucket.consume += 1;
+  }
+  return counts;
+}
+
+function analysisTrendLabel(dateText) {
+  const [, month, day] = dateText.split("-");
+  return `${Number(month)}/${Number(day)}`;
+}
+
+function buildAnalysisTrend(items, batches, transactions, dates) {
+  const txCounts = analysisTransactionCountsByDay(transactions, dates);
+  return dates.map((date) => {
+    const counts = txCounts.get(date) || { add: 0, consume: 0 };
+    return {
+      date,
+      label: analysisTrendLabel(date),
+      stockSkuCount: analysisStockSkuCountAt(items, batches, transactions, date),
+      addOperationCount: counts.add,
+      consumeOperationCount: counts.consume,
+    };
+  });
+}
+
+function buildAnalysisValueSummary(batches) {
+  const positiveBatches = batches.filter((batch) => Number(batch.quantity || 0) > 0);
+  const pricedBatchCount = positiveBatches.filter((batch) => batch.purchasePrice != null).length;
+  return {
+    status: "BLOCKED_PRICE_SEMANTICS",
+    label: "暂不计算",
+    message: "purchasePrice 的含义尚未冻结，不能把它当作单价或批次总价计算库存价值。",
+    pricedBatchCount,
+    positiveBatchCount: positiveBatches.length,
+    coveragePercent: safePercent(pricedBatchCount, positiveBatches.length),
+  };
+}
+
+async function getAnalysisOverview(openid, payload = {}) {
+  const range = normalizeAnalysisRange(payload.range);
+  const generatedAt = Date.now();
+  const today = todayText(new Date(generatedAt));
+  const [items, batches, categories, restocks, transactions] = await Promise.all([
+    queryAll(COLLECTIONS.items, { _openid: openid }),
+    queryAll(COLLECTIONS.batches, { _openid: openid }),
+    queryAll(COLLECTIONS.categories, { _openid: openid }),
+    queryAll(COLLECTIONS.restockItems, { _openid: openid }),
+    queryAll(COLLECTIONS.transactions, { _openid: openid }),
+  ]);
+  const totals = analysisTotalsByItem(items, batches);
+  const positiveBatches = batches.filter((batch) => Number(batch.quantity || 0) > 0);
+  const expiryDistribution = buildExpiryBatchDistribution(batches, today);
+  const dates = buildAnalysisDateRange(range, today, transactions);
+  const trend = buildAnalysisTrend(items, batches, transactions, dates);
+  return {
+    generatedAt,
+    range,
+    rangeLabel: analysisRangeLabel(range),
+    summary: {
+      skuCount: items.length,
+      positiveSkuCount: items.filter((item) => (totals.get(item._id) || 0) > 0).length,
+      batchCount: batches.length,
+      positiveBatchCount: positiveBatches.length,
+      expiringBatchCount: expiryDistribution.find((bucket) => bucket.key === "DAYS_0_7")?.count || 0,
+      expiredBatchCount: expiryDistribution.find((bucket) => bucket.key === "EXPIRED")?.count || 0,
+      lowStockItemCount: items.filter((item) => {
+        const total = totals.get(item._id) || 0;
+        return total > 0 && item.lowStockThreshold != null && total <= item.lowStockThreshold;
+      }).length,
+      zeroStockItemCount: items.filter((item) => (totals.get(item._id) || 0) === 0).length,
+      restockNeededCount: restocks.filter((restock) => restock.status === "NEEDED").length,
+    },
+    categorySkuDistribution: buildCategorySkuDistribution(items, categories),
+    expiryBatchDistribution: expiryDistribution,
+    stockTrend: trend,
+    transactionTrend: trend,
+    valueSummary: buildAnalysisValueSummary(batches),
+    empty: items.length === 0 && batches.length === 0,
+  };
+}
+
 async function getItemDetail(openid, payload) {
   const itemId = payload && payload.itemId;
   if (!itemId) throw inventoryError("VALIDATION_ERROR", "itemId is required");
@@ -511,6 +711,7 @@ exports.main = async function main(event) {
     if (!event || !event.action) throw inventoryError("VALIDATION_ERROR", "action is required");
     if (event.action === "listInventoryRows") return ok(await listInventoryRows(openid, event.payload || {}));
     if (event.action === "getHomeDashboard") return ok(await getHomeDashboard(openid));
+    if (event.action === "getAnalysisOverview") return ok(await getAnalysisOverview(openid, event.payload || {}));
     if (event.action === "getItemDetail") return ok(await getItemDetail(openid, event.payload || {}));
     if (event.action === "listReminderCenter") return ok(await listReminderCenter(openid, event.payload || {}));
     throw inventoryError("VALIDATION_ERROR", `Unsupported action: ${event.action}`);

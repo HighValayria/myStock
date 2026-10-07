@@ -12,6 +12,7 @@ exports.listInventoryRows = listInventoryRows;
 exports.getHomeDashboard = getHomeDashboard;
 exports.getItemDetail = getItemDetail;
 exports.listReminderCenter = listReminderCenter;
+exports.getAnalysisOverview = getAnalysisOverview;
 exports.addStock = addStock;
 exports.consumeStock = consumeStock;
 exports.markReminderRead = markReminderRead;
@@ -148,6 +149,11 @@ async function listReminderCenter(options = {}) {
         type: options.type || '',
         status: options.status || 'open',
         includeClosedRestock: Boolean(options.includeClosedRestock),
+    });
+}
+async function getAnalysisOverview(options = {}) {
+    return callCloudFunction('inventoryRead', 'getAnalysisOverview', {
+        range: options.range || '30d',
     });
 }
 async function addStock(input) {

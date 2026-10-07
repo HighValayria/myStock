@@ -3,6 +3,7 @@ import type { AddStockInput, AdjustStockInput, Batch, ConsumeStockInput, ExpiryS
 import { createRepositories, type InventoryRepositories } from '../repositories/index';
 import { InventoryService } from './inventory-service';
 import { CloudFunctionInventoryMutationClient } from './inventory-mutation-client';
+import type { AnalysisOverview, AnalysisRange } from './statistics-service';
 
 interface OpenIdResult {
   openid?: string;
@@ -147,6 +148,10 @@ export interface Phase4ReminderQuery {
   includeClosedRestock?: boolean;
 }
 
+export interface Phase5AnalysisQuery {
+  range?: AnalysisRange;
+}
+
 let cachedContext: Phase2Context | null = null;
 
 async function getOpenId(): Promise<string> {
@@ -274,6 +279,12 @@ export async function listReminderCenter(options: Phase4ReminderQuery = {}): Pro
     type: options.type || '',
     status: options.status || 'open',
     includeClosedRestock: Boolean(options.includeClosedRestock),
+  });
+}
+
+export async function getAnalysisOverview(options: Phase5AnalysisQuery = {}): Promise<AnalysisOverview> {
+  return callCloudFunction<AnalysisOverview>('inventoryRead', 'getAnalysisOverview', {
+    range: options.range || '30d',
   });
 }
 

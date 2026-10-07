@@ -12,6 +12,12 @@ V0.1 includes “撤销 / 修正基本能力”, while delete rules prefer undo 
 
 Current engineering stance: Phase 2 implements explicit inventory correction through `adjustStock`, which creates ADJUST Transaction history. TC-P2-009 “撤销最近操作” is BLOCKED until the product rule defines undo scope. Do not invent an undo UI or reverse-transaction semantics without updating the Design Freeze.
 
+### Q8: Purchase Price Semantics For Inventory Value
+
+V0.1 Analytics allows optional inventory value when purchase price exists, but the current schema only defines `Batch.purchasePrice?: number | null` and does not specify whether it means unit price, whole-batch total price, discounted paid amount, or another pricing basis.
+
+Current engineering stance: Phase 5 shows inventory value as unavailable and reports price coverage only. Do not calculate a total inventory value from `purchasePrice` until the Design Freeze defines the price semantics and how partial consumption should affect value.
+
 ## B. Can Defer To Later Phase
 
 ### Q1: Units Management Data Shape

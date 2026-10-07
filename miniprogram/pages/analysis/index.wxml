@@ -1,1 +1,101 @@
-<view class="placeholder"><view class="title">分析</view><view class="text">库存分析将在 Phase 5 实现。</view></view>
+<view class="page">
+  <view class="hero">
+    <view>
+      <view class="eyebrow">库存分析</view>
+      <view class="title">分析</view>
+    </view>
+    <button class="reload" bindtap="loadOverview">刷新</button>
+  </view>
+
+  <view class="range-row">
+    <button wx:for="{{rangeOptions}}" wx:key="key" class="range {{selectedRange === item.key ? 'active' : ''}}" data-range="{{item.key}}" bindtap="changeRange">{{item.label}}</button>
+  </view>
+
+  <view wx:if="{{error}}" class="error-block">
+    <view>分析加载失败</view>
+    <view class="error-detail">{{error}}</view>
+    <button size="mini" bindtap="loadOverview">重新加载</button>
+  </view>
+
+  <view wx:if="{{loading}}" class="muted">分析加载中...</view>
+  <view wx:if="{{overview && overview.empty && !loading}}" class="empty">还没有可分析的库存数据</view>
+
+  <view wx:if="{{overview}}" class="stats-grid">
+    <view wx:for="{{statCards}}" wx:key="key" class="stat">
+      <view class="stat-label">{{item.label}}</view>
+      <view class="stat-value">{{item.value}}</view>
+      <view class="stat-note">{{item.note}}</view>
+    </view>
+  </view>
+
+  <view wx:if="{{overview}}" class="section">
+    <view class="section-head">
+      <view class="section-title">分类 SKU 占比</view>
+      <view class="section-meta">按物品数统计</view>
+    </view>
+    <view wx:if="{{!hasCategoryRows}}" class="empty small">暂无分类数据</view>
+    <view wx:for="{{categoryRows}}" wx:key="key" class="bar-row">
+      <view class="bar-label">{{item.label}}</view>
+      <view class="bar-track"><view class="bar-fill category" style="width: {{item.width}}%;"></view></view>
+      <view class="bar-value">{{item.count}} · {{item.percentText}}</view>
+    </view>
+  </view>
+
+  <view wx:if="{{overview}}" class="section">
+    <view class="section-head">
+      <view class="section-title">效期分布</view>
+      <view class="section-meta">按有库存批次数统计</view>
+    </view>
+    <view wx:if="{{!hasExpiryRows}}" class="empty small">暂无有库存批次</view>
+    <view wx:for="{{expiryRows}}" wx:key="key" class="bar-row">
+      <view class="bar-label">{{item.label}}</view>
+      <view class="bar-track"><view class="bar-fill expiry" style="width: {{item.width}}%;"></view></view>
+      <view class="bar-value">{{item.count}} · {{item.percentText}}</view>
+    </view>
+  </view>
+
+  <view wx:if="{{overview}}" class="section">
+    <view class="section-head">
+      <view class="section-title">有库存 SKU 趋势</view>
+      <view class="section-meta">{{overview.rangeLabel}}</view>
+    </view>
+    <scroll-view scroll-x class="trend-scroll">
+      <view class="trend">
+        <view wx:for="{{trendRows}}" wx:key="date" class="trend-point">
+          <view class="stock-bar" style="height: {{item.stockHeight}}%;"></view>
+          <view class="trend-count">{{item.stockSkuCount}}</view>
+          <view class="trend-label">{{item.label}}</view>
+        </view>
+      </view>
+    </scroll-view>
+  </view>
+
+  <view wx:if="{{overview}}" class="section">
+    <view class="section-head">
+      <view class="section-title">库存操作趋势</view>
+      <view class="section-meta">按操作次数统计</view>
+    </view>
+    <scroll-view scroll-x class="trend-scroll">
+      <view class="trend ops">
+        <view wx:for="{{trendRows}}" wx:key="date" class="trend-point op-point">
+          <view class="op-bars">
+            <view class="op-bar add" style="height: {{item.addHeight}}%;"></view>
+            <view class="op-bar consume" style="height: {{item.consumeHeight}}%;"></view>
+          </view>
+          <view class="trend-count">{{item.addOperationCount}}/{{item.consumeOperationCount}}</view>
+          <view class="trend-label">{{item.label}}</view>
+        </view>
+      </view>
+    </scroll-view>
+    <view class="legend"><text class="dot add"></text>增加 <text class="dot consume"></text>消耗</view>
+  </view>
+
+  <view wx:if="{{overview}}" class="section value-section">
+    <view class="section-head">
+      <view class="section-title">库存价值</view>
+      <view class="section-meta">{{overview.valueSummary.label}}</view>
+    </view>
+    <view class="value-message">{{overview.valueSummary.message}}</view>
+    <view class="value-meta">已记录价格覆盖：{{valueCoverageText}} · {{overview.valueSummary.coveragePercent}}%</view>
+  </view>
+</view>

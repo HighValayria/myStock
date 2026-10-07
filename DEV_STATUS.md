@@ -2,7 +2,9 @@
 
 ## Current Phase
 
-Phase 4 implementation is code-complete for Reminder System and Restock. Automated verification passes. WeChat DevTools manual UI acceptance for TC-P4-001 through TC-P4-020 is pending after deploying the updated `inventoryRead` and `inventoryWrite` cloud functions.
+Phase 5 implementation is code-complete for the V0.1 Analytics page. Automated verification passes. WeChat DevTools manual UI acceptance for TC-P5-001 through TC-P5-010 is pending after deploying the updated `inventoryRead` cloud function.
+
+Phase 4 implementation remains code-complete for Reminder System and Restock. WeChat DevTools manual UI acceptance for TC-P4-001 through TC-P4-020 is pending after deploying the updated `inventoryRead` and `inventoryWrite` cloud functions.
 
 Phase 3 implementation remains code-complete for the formal Home and Inventory Browsing surface. WeChat DevTools manual UI acceptance for TC-P3-001 through TC-P3-018 is still pending after deploying the updated `inventoryRead` cloud function.
 
@@ -33,7 +35,11 @@ Phase 2 remains code-complete for the Add / Consume / Edit loop. TC-P2-009 Undo 
 - RestockItem remains separate from Reminder: ZERO_STOCK does not automatically create NEEDED unless the user chooses to join restock.
 - Item detail now has a manual Join Restock entry. Restock “record purchase” reuses the Phase 2 Add Stock page with current Item context.
 - Home important reminder panel links to the real reminder center.
-- Lightweight placeholder tabs remain for Analysis and Settings only; no Phase 5/6 functionality implemented.
+- Phase 5 analysis tab replaces the Analysis placeholder with real V0.1 statistics.
+- `StatisticsService` computes category SKU distribution, expiry Batch distribution, positive-SKU stock trend, ADD / CONSUME operation trend, summary cards, and inventory value availability.
+- `inventoryRead.getAnalysisOverview` aggregates Phase 5 read models server-side using current OPENID.
+- Inventory value total is intentionally unavailable because `Batch.purchasePrice` semantics are not frozen.
+- Lightweight placeholder remains for Settings only; no Phase 6 functionality implemented.
 
 ## Automated Verification
 
@@ -46,19 +52,21 @@ npm test
 Latest result:
 
 ```text
-34 tests passed
+44 tests passed
 ```
 
-Coverage includes Phase 1/2/3 regression plus Phase 4 Reminder and Restock lifecycle tests T-P4-A01 through T-P4-A16.
+Coverage includes Phase 1/2/3 regression, Phase 4 Reminder and Restock lifecycle tests T-P4-A01 through T-P4-A16, and Phase 5 Analytics tests T-P5-A01 through T-P5-A10.
 
 Additional static verification:
 
 ```bash
 node --check cloudfunctions/inventoryRead/index.js
 node --check cloudfunctions/inventoryWrite/index.js
+node --check miniprogram/pages/analysis/index.js
 node --check miniprogram/pages/reminders/index.js
 node --check miniprogram/pages/item-detail/index.js
 node --check miniprogram/services/phase2-ui-service.js
+node --check miniprogram/services/statistics-service.js
 ```
 
 ## Manual Verification
@@ -81,6 +89,10 @@ Pending Phase 4 manual UI acceptance in WeChat DevTools:
 
 - TC-P4-001 through TC-P4-020.
 
+Pending Phase 5 manual UI acceptance in WeChat DevTools:
+
+- TC-P5-001 through TC-P5-010.
+
 Pending Phase 3 manual UI acceptance in WeChat DevTools:
 
 - TC-P3-001 through TC-P3-018.
@@ -102,7 +114,8 @@ Deferred manual verification:
 
 - TC-P2-009 Undo: blocked because undo scope is not frozen.
 - Two-account user isolation: no second authorized WeChat developer account is currently available.
+- Phase 5 inventory value total: blocked because purchase price semantics are not frozen.
 
-## Phase 4 Readiness
+## Phase 5 Readiness
 
-Phase 4 has been started and code-completed per explicit user direction, even though Phase 3 manual acceptance remains pending. Do not start Phase 5 until Phase 4 manual acceptance and the listed Phase 2/3 regression checks pass in WeChat DevTools. TC-P2-009 remains blocked by product definition and does not count as a code failure.
+Phase 5 has been started and code-completed per explicit user direction, even though Phase 3/4 manual acceptance remains pending. Do not start Phase 6 until Phase 5 manual acceptance and the listed Phase 2/3/4 regression checks pass in WeChat DevTools. TC-P2-009 remains blocked by product definition and does not count as a code failure.

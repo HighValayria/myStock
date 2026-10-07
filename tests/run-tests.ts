@@ -1,11 +1,11 @@
 import { createMemoryRepositories } from '../miniprogram/repositories';
-import { InventoryService, ReminderService } from '../miniprogram/services';
+import { InventoryService, ReminderService, StatisticsService } from '../miniprogram/services';
 import type { InventoryMutationClient } from '../miniprogram/services';
 import { InventoryError } from '../miniprogram/utils/errors';
 import { resetIdSequenceForTests } from '../miniprogram/utils/id';
 import { DEFAULT_UNIT, UNKNOWN_EXPIRY_DATE, calculateExpiryDateFromShelfLife, parseNonNegativeNumber, parsePositiveNumber, resolveExpiryDate } from '../miniprogram/utils/phase2-form';
 import { expiryStatusLabel, formatRemainingDays, transactionQuantityText, transactionTypeLabel, visibleExpiryDate } from '../miniprogram/utils/phase3-view';
-import type { AddStockInput, CreateItemInput } from '../miniprogram/models';
+import type { AddStockInput, Batch, Category, CreateItemInput, Item, RestockItem, Transaction } from '../miniprogram/models';
 
 interface TestContext {
   repos: ReturnType<typeof createMemoryRepositories>;
@@ -15,6 +15,7 @@ interface TestContext {
 
 const USER_ID = 'test-user';
 const TODAY = new Date('2026-10-03T00:00:00.000Z');
+const TEST_SCHEMA_VERSION = 1;
 
 function assert(condition: unknown, message: string): void {
   if (!condition) throw new Error(message);
@@ -65,6 +66,107 @@ function stockInput(overrides: Partial<AddStockInput> = {}): AddStockInput {
     expiryDate: '2026-10-20',
     ...overrides,
   };
+}
+
+type MemoryRepos = ReturnType<typeof createMemoryRepositories>;
+
+async function seedCategory(repos: MemoryRepos, id: string, name: string): Promise<Category> {
+  const now = TODAY.getTime();
+  return repos.categories.create({
+    _id: id,
+    _openid: USER_ID,
+    schemaVersion: TEST_SCHEMA_VERSION,
+    name,
+    createdAt: now,
+    updatedAt: now,
+  });
+}
+
+async function seedItem(repos: MemoryRepos, id: string, overrides: Partial<Item> = {}): Promise<Item> {
+  const now = TODAY.getTime();
+  return repos.items.create({
+    _id: id,
+    _openid: USER_ID,
+    schemaVersion: TEST_SCHEMA_VERSION,
+    name: id,
+    categoryId: 'cat_food',
+    unit: 'box',
+    brand: null,
+    specification: null,
+    defaultLocationId: null,
+    lowStockThreshold: null,
+    expiryWarningDays: 7,
+    barcode: null,
+    note: '',
+    createdAt: now,
+    updatedAt: now,
+    ...overrides,
+  });
+}
+
+async function seedBatch(repos: MemoryRepos, id: string, itemId: string, overrides: Partial<Batch> = {}): Promise<Batch> {
+  const now = TODAY.getTime();
+  return repos.batches.create({
+    _id: id,
+    _openid: USER_ID,
+    schemaVersion: TEST_SCHEMA_VERSION,
+    itemId,
+    quantity: 1,
+    locationId: 'loc_default',
+    purchaseDate: '2026-10-01',
+    productionDate: null,
+    shelfLifeValue: null,
+    shelfLifeUnit: null,
+    expiryDate: '2026-10-20',
+    purchasePrice: null,
+    purchaseChannel: null,
+    openedDate: null,
+    openedExpiryDate: null,
+    note: '',
+    createdAt: now,
+    updatedAt: now,
+    ...overrides,
+  });
+}
+
+async function seedTransaction(repos: MemoryRepos, id: string, itemId: string, overrides: Partial<Transaction> = {}): Promise<Transaction> {
+  return repos.transactions.create({
+    _id: id,
+    _openid: USER_ID,
+    schemaVersion: TEST_SCHEMA_VERSION,
+    itemId,
+    batchId: overrides.batchId || 'batch_default',
+    type: 'ADD',
+    quantity: 1,
+    reason: 'PURCHASE',
+    operationId: id,
+    createdAt: TODAY.getTime(),
+    ...overrides,
+  });
+}
+
+async function seedRestock(repos: MemoryRepos, id: string, itemId: string, overrides: Partial<RestockItem> = {}): Promise<RestockItem> {
+  const now = TODAY.getTime();
+  return repos.restockItems.create({
+    _id: id,
+    _openid: USER_ID,
+    schemaVersion: TEST_SCHEMA_VERSION,
+    itemId,
+    status: 'NEEDED',
+    resolvedAt: null,
+    note: '',
+    createdAt: now,
+    updatedAt: now,
+    ...overrides,
+  });
+}
+
+function statistics(repos: MemoryRepos): StatisticsService {
+  return new StatisticsService(repos, { userId: USER_ID, now: () => TODAY });
+}
+
+function sumTrend(points: Array<{ addOperationCount: number; consumeOperationCount: number }>, key: 'addOperationCount' | 'consumeOperationCount'): number {
+  return points.reduce((sum, point) => sum + point[key], 0);
 }
 
 const tests: Array<[string, () => Promise<void>]> = [
@@ -450,6 +552,120 @@ const tests: Array<[string, () => Promise<void>]> = [
     assertEqual(needed, null, 'no needed restock after dismiss');
     const all = await repos.restockItems.listByUser(USER_ID);
     assert(all.some((item) => item.status === 'DISMISSED'), 'dismissed restock retained as history');
+  }],
+
+  ['T-P5-A01 category share counts SKUs instead of quantities', async () => {
+    const { repos } = createContext();
+    await seedCategory(repos, 'cat_food', '食品');
+    await seedCategory(repos, 'cat_tool', '工具');
+    await seedItem(repos, 'item_milk', { categoryId: 'cat_food', unit: 'box' });
+    await seedItem(repos, 'item_rice', { categoryId: 'cat_food', unit: 'kg' });
+    await seedItem(repos, 'item_tool', { categoryId: 'cat_tool', unit: 'piece' });
+    await seedBatch(repos, 'batch_milk', 'item_milk', { quantity: 2 });
+    await seedBatch(repos, 'batch_rice', 'item_rice', { quantity: 1000 });
+    await seedBatch(repos, 'batch_tool', 'item_tool', { quantity: 1 });
+    const overview = await statistics(repos).getAnalysisOverview();
+    const food = overview.categorySkuDistribution.find((row) => row.key === 'cat_food');
+    assertEqual(food?.count, 2, 'food SKU count');
+    assertEqual(food?.percent, 66.7, 'food SKU percent');
+  }],
+
+  ['T-P5-A02 expiry distribution counts positive batches only', async () => {
+    const { repos } = createContext();
+    await seedItem(repos, 'item_expiry');
+    await seedBatch(repos, 'batch_expired', 'item_expiry', { quantity: 1, expiryDate: '2026-10-01' });
+    await seedBatch(repos, 'batch_week', 'item_expiry', { quantity: 1, expiryDate: '2026-10-05' });
+    await seedBatch(repos, 'batch_unknown', 'item_expiry', { quantity: 1, expiryDate: UNKNOWN_EXPIRY_DATE });
+    await seedBatch(repos, 'batch_empty', 'item_expiry', { quantity: 0, expiryDate: '2026-10-01' });
+    const overview = await statistics(repos).getAnalysisOverview();
+    assertEqual(overview.expiryBatchDistribution.find((row) => row.key === 'EXPIRED')?.count, 1, 'expired batch count');
+    assertEqual(overview.expiryBatchDistribution.find((row) => row.key === 'DAYS_0_7')?.count, 1, '7 day batch count');
+    assertEqual(overview.expiryBatchDistribution.find((row) => row.key === 'NO_EXPIRY')?.count, 1, 'unknown expiry batch count');
+    assertEqual(overview.summary.positiveBatchCount, 3, 'positive batch count excludes zero');
+  }],
+
+  ['T-P5-A03 stock trend uses positive SKU count, not mixed quantity sum', async () => {
+    const { repos } = createContext();
+    await seedItem(repos, 'item_milk', { unit: 'box' });
+    await seedItem(repos, 'item_rice', { unit: 'kg' });
+    await seedBatch(repos, 'batch_milk', 'item_milk', { quantity: 1 });
+    await seedBatch(repos, 'batch_rice', 'item_rice', { quantity: 1000 });
+    const overview = await statistics(repos).getAnalysisOverview({ range: '7d' });
+    assertEqual(overview.summary.positiveSkuCount, 2, 'positive SKU count');
+    assertEqual(overview.stockTrend[overview.stockTrend.length - 1].stockSkuCount, 2, 'latest stock trend SKU count');
+  }],
+
+  ['T-P5-A04 transaction trend counts operations and deduplicates multi-batch consume', async () => {
+    const { repos } = createContext();
+    await seedItem(repos, 'item_milk');
+    await seedBatch(repos, 'batch_a', 'item_milk', { quantity: 1 });
+    await seedBatch(repos, 'batch_b', 'item_milk', { quantity: 1 });
+    await seedTransaction(repos, 'tx_add', 'item_milk', { batchId: 'batch_a', type: 'ADD', quantity: 2, operationId: 'op_add' });
+    await seedTransaction(repos, 'tx_consume_a', 'item_milk', { batchId: 'batch_a', type: 'CONSUME', quantity: -1, reason: 'USED', operationId: 'op_consume' });
+    await seedTransaction(repos, 'tx_consume_b', 'item_milk', { batchId: 'batch_b', type: 'CONSUME', quantity: -1, reason: 'USED', operationId: 'op_consume' });
+    const overview = await statistics(repos).getAnalysisOverview({ range: '7d' });
+    const todayPoint = overview.transactionTrend.find((point) => point.date === '2026-10-03');
+    assertEqual(todayPoint?.addOperationCount, 1, 'one add operation');
+    assertEqual(todayPoint?.consumeOperationCount, 1, 'one consume operation after dedupe');
+  }],
+
+  ['T-P5-A05 time range excludes operations outside selected window', async () => {
+    const { repos } = createContext();
+    await seedItem(repos, 'item_milk');
+    await seedBatch(repos, 'batch_milk', 'item_milk', { quantity: 2 });
+    await seedTransaction(repos, 'tx_old', 'item_milk', { createdAt: Date.UTC(2026, 8, 25), operationId: 'op_old' });
+    await seedTransaction(repos, 'tx_today', 'item_milk', { createdAt: Date.UTC(2026, 9, 3), operationId: 'op_today' });
+    const week = await statistics(repos).getAnalysisOverview({ range: '7d' });
+    const month = await statistics(repos).getAnalysisOverview({ range: '30d' });
+    assertEqual(sumTrend(week.transactionTrend, 'addOperationCount'), 1, '7 day trend excludes old add');
+    assertEqual(sumTrend(month.transactionTrend, 'addOperationCount'), 2, '30 day trend includes old add');
+  }],
+
+  ['T-P5-A06 empty analysis has stable zero values and no NaN percent', async () => {
+    const { repos } = createContext();
+    const overview = await statistics(repos).getAnalysisOverview({ range: '7d' });
+    assert(overview.empty, 'overview is empty');
+    assertEqual(overview.summary.skuCount, 0, 'empty SKU count');
+    assert(overview.expiryBatchDistribution.every((row) => row.percent === 0), 'empty percentages are zero');
+  }],
+
+  ['T-P5-A07 no-expiry batches are grouped separately', async () => {
+    const { repos } = createContext();
+    await seedItem(repos, 'item_no_expiry');
+    await seedBatch(repos, 'batch_no_expiry', 'item_no_expiry', { expiryDate: UNKNOWN_EXPIRY_DATE, quantity: 1 });
+    const overview = await statistics(repos).getAnalysisOverview();
+    assertEqual(overview.expiryBatchDistribution.find((row) => row.key === 'NO_EXPIRY')?.count, 1, 'no expiry count');
+  }],
+
+  ['T-P5-A08 single category share renders as 100 percent', async () => {
+    const { repos } = createContext();
+    await seedCategory(repos, 'cat_food', '食品');
+    await seedItem(repos, 'item_only', { categoryId: 'cat_food' });
+    const overview = await statistics(repos).getAnalysisOverview();
+    assertEqual(overview.categorySkuDistribution[0].percent, 100, 'single category percent');
+  }],
+
+  ['T-P5-A09 inventory value remains blocked when purchasePrice semantics are undefined', async () => {
+    const { repos } = createContext();
+    await seedItem(repos, 'item_priced');
+    await seedBatch(repos, 'batch_priced', 'item_priced', { quantity: 2, purchasePrice: 12.5 });
+    const overview = await statistics(repos).getAnalysisOverview();
+    assertEqual(overview.valueSummary.status, 'BLOCKED_PRICE_SEMANTICS', 'value summary status');
+    assertEqual(overview.valueSummary.pricedBatchCount, 1, 'priced batch coverage count');
+    assert(!('totalValue' in overview.valueSummary), 'value summary must not expose calculated total value');
+  }],
+
+  ['T-P5-A10 summary separates low stock, zero stock, and restock counts', async () => {
+    const { repos } = createContext();
+    await seedItem(repos, 'item_low', { lowStockThreshold: 2 });
+    await seedItem(repos, 'item_zero');
+    await seedBatch(repos, 'batch_low', 'item_low', { quantity: 1 });
+    await seedBatch(repos, 'batch_zero', 'item_zero', { quantity: 0 });
+    await seedRestock(repos, 'restock_zero', 'item_zero');
+    const overview = await statistics(repos).getAnalysisOverview();
+    assertEqual(overview.summary.lowStockItemCount, 1, 'low stock item count');
+    assertEqual(overview.summary.zeroStockItemCount, 1, 'zero stock item count');
+    assertEqual(overview.summary.restockNeededCount, 1, 'restock needed count');
   }],
 ];
 
