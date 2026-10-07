@@ -21,7 +21,7 @@
     <button class="status-filter {{statusFilter === 'open' ? 'active' : ''}}" data-status="open" bindtap="changeStatus">当前未结束</button>
     <button class="status-filter {{statusFilter === 'ACTIVE' ? 'active' : ''}}" data-status="ACTIVE" bindtap="changeStatus">新提醒</button>
     <button class="status-filter {{statusFilter === 'READ' ? 'active' : ''}}" data-status="READ" bindtap="changeStatus">已查看</button>
-    <button class="status-filter {{statusFilter === 'DISMISSED' ? 'active' : ''}}" data-status="DISMISSED" bindtap="changeStatus">已忽略</button>
+    <button class="status-filter {{statusFilter === 'DISMISSED' ? 'active' : ''}}" data-status="DISMISSED" bindtap="changeStatus">回收站</button>
     <button class="status-filter {{statusFilter === 'all' ? 'active' : ''}}" data-status="all" bindtap="changeStatus">全部</button>
   </view>
 

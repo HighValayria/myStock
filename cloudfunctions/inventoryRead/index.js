@@ -123,7 +123,7 @@ function activeReminder(reminder) {
 }
 
 function openReminder(reminder) {
-  return reminder.status === "ACTIVE" || reminder.status === "READ" || reminder.status === "DISMISSED";
+  return reminder.status === "ACTIVE" || reminder.status === "READ";
 }
 
 function buildNameMap(items) {
