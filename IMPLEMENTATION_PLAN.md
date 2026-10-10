@@ -424,6 +424,14 @@ Not handled yet:
 - Arbitrary intelligent Excel field mapping.
 - Cloud backup as a separate service.
 
+## Phase 6B: Intelligent Import Architecture Migration
+
+Status: Implemented; 89 local automated tests pass. Real model, CloudBase deployment and seven manual cases pending. Phase 6A is the accepted fallback; Phase 6C multimodal input is reserved only.
+
+Pipeline: Input -> mature parser -> IR -> inspection/structure -> canonical mapping -> ImportPlan -> Candidate -> existing validator -> user preview/edits/confirmation -> existing addStock implementation.
+
+Deliverables: dataManage/parsers, import and ai modules, Data Management preview UI, private import_jobs, atomic revision freeze, source-derived operation IDs and 20-row execution chunks. Spreadsheet dependencies remain cloud-only. Build bundles the canonical inventory engine. Acceptance: docs/TEST_REPORTS/phase_6b.md and TC-P6B-001 through TC-P6B-007. Do not start Phase 7 automatically.
+
 ## Phase 7: Testing, Error Handling, and Release Preparation
 
 Goal:

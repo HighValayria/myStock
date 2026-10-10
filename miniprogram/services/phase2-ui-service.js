@@ -1,8 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.adjustStock = adjustStock;
-exports.updateItem = updateItem;
-exports.updateBatch = updateBatch;
+exports.previewSmartImport = previewSmartImport;
+exports.commitSmartImport = commitSmartImport;
 exports.getPhase2Context = getPhase2Context;
 exports.resetPhase2ContextForTests = resetPhase2ContextForTests;
 exports.getTaxonomyOptions = getTaxonomyOptions;
@@ -21,6 +20,9 @@ exports.previewRestoreBackup = previewRestoreBackup;
 exports.restoreBackup = restoreBackup;
 exports.addStock = addStock;
 exports.consumeStock = consumeStock;
+exports.adjustStock = adjustStock;
+exports.updateItem = updateItem;
+exports.updateBatch = updateBatch;
 exports.markReminderRead = markReminderRead;
 exports.dismissReminder = dismissReminder;
 exports.purgeDismissedReminder = purgeDismissedReminder;
@@ -30,6 +32,21 @@ const cloud_1 = require("../config/cloud");
 const index_1 = require("../repositories/index");
 const inventory_service_1 = require("./inventory-service");
 const inventory_mutation_client_1 = require("./inventory-mutation-client");
+async function previewSmartImport(payload) {
+    return callCloudFunction('dataManage', 'previewSmartImport', payload);
+}
+async function commitSmartImport(jobId, revision) {
+    const total = { importOperationId: jobId, successRows: 0, skippedRows: 0, createdItems: 0, addedBatches: 0, mergedBatches: 0, failedRows: [] };
+    let offset = 0;
+    while (offset !== null) {
+        const result = await callCloudFunction('dataManage', 'commitSmartImport', { jobId, revision, confirmed: true, offset });
+        for (const field of ['successRows', 'skippedRows', 'createdItems', 'addedBatches', 'mergedBatches'])
+            total[field] += result[field];
+        total.failedRows.push(...result.failedRows);
+        offset = result.nextOffset;
+    }
+    return total;
+}
 let cachedContext = null;
 async function getOpenId() {
     (0, cloud_1.initCloud)();

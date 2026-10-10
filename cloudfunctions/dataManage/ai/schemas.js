@@ -1,0 +1,14 @@
+"use strict";
+const { labels } = require("../import/fields");
+const object = properties => ({ type: "object", properties, required: Object.keys(properties), additionalProperties: false });
+const string = { type: "string" };
+const integer = { type: "integer", minimum: 0 };
+const confidence = { type: "number", minimum: 0, maximum: 1 };
+const nullable = { type: ["string", "null"] };
+const roles = ["CURRENT_INVENTORY", "HISTORICAL_DATA", "REFERENCE", "INSTRUCTIONS", "ANALYTICS", "UNKNOWN", "IGNORE"];
+const classifications = object({ sheets: { type: "array", items: object({ index: integer, role: { type: "string", enum: roles }, confidence, reason: string }) } });
+const regions = object({ tables: { type: "array", items: object({ headerRow: integer, startColumn: integer, endColumn: integer, endRow: integer, role: { type: "string", enum: roles }, categoryHint: nullable, locationHint: nullable, confidence, reason: string }) } });
+const mappings = object({ mapping: { type: "array", items: object({ column: integer, targetField: { type: "string", enum: Object.keys(labels) }, confidence, reason: string }) } });
+const values = object(Object.fromEntries(Object.keys(labels).filter(key => !["IGNORE", "UNKNOWN"].includes(key)).map(key => [key, nullable])));
+const extraction = object({ candidates: { type: "array", items: object({ values, sourceText: string, confidence, warnings: { type: "array", items: string } }) } });
+module.exports = { classifications, regions, mappings, extraction, roles };

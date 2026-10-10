@@ -167,6 +167,41 @@ export interface Phase6ImportPreview {
   };
 }
 
+export interface SmartCandidate {
+  id: string;
+  values: Record<string, string | null>;
+  source: { file: string; sheet?: string; row?: number; sourceText: string };
+  confidence: number;
+  warnings: string[];
+  confirmed: boolean;
+}
+export interface SmartImportPreview extends Phase6ImportPreview {
+  jobId: string;
+  revision: number;
+  needsConfirmation: number;
+  candidates: SmartCandidate[];
+  plan: {
+    sourceType: string;
+    warnings: string[];
+    sheets: Array<{ index: number; name: string; role: string; selected: boolean; confidence: number; reason: string }>;
+    tables: Array<{ id: string; sheet: string; headerRow: number; endRow: number; startColumn: number; endColumn: number; selected: boolean; categoryHint: string | null; locationHint: string | null; mapping: Array<{ column: number; sourceColumn: string; targetField: string; confidence: number; method: string; reason: string }> }>;
+  };
+}
+export async function previewSmartImport(payload: Record<string, unknown>): Promise<SmartImportPreview> {
+  return callCloudFunction<SmartImportPreview>('dataManage', 'previewSmartImport', payload);
+}
+export async function commitSmartImport(jobId: string, revision: number): Promise<Phase6ImportResult> {
+  const total: Phase6ImportResult = { importOperationId: jobId, successRows: 0, skippedRows: 0, createdItems: 0, addedBatches: 0, mergedBatches: 0, failedRows: [] };
+  let offset: number | null = 0;
+  while (offset !== null) {
+    const result: Phase6ImportResult & { nextOffset: number | null } = await callCloudFunction('dataManage', 'commitSmartImport', { jobId, revision, confirmed: true, offset });
+    for (const field of ['successRows', 'skippedRows', 'createdItems', 'addedBatches', 'mergedBatches'] as const) total[field] += result[field];
+    total.failedRows.push(...result.failedRows);
+    offset = result.nextOffset;
+  }
+  return total;
+}
+
 export interface Phase6ImportResult {
   importOperationId: string;
   successRows: number;

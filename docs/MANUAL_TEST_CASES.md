@@ -1,5 +1,21 @@
 # 物有数 V0.1 全阶段测试流程
 
+## Phase 6B 手工验收补充（2026-10-10）
+
+前置：部署新版 dataManage、创建仅云函数可读写的 import_jobs、重新编译小程序。AI 环境变量可选；真实 AI 场景需配置支持 JSON Schema 的服务。文件在 tests/fixtures/phase6b；本轮这些场景均待人工验收。
+
+| 编号 | 文件/输入 | 预期 |
+|---|---|---|
+| TC-P6B-001 | 01-standard.xlsx | 标准字段无需 AI；预览无库存写入；确认生成 ADD |
+| TC-P6B-002 | 02-multi-sheet.xlsx | 发现全部 Sheet；建议食品/日用品；说明/统计未选中；可切换选择 |
+| TC-P6B-003 | 03-nonstandard.xlsx | 无 AI 可手动映射；有 AI 显示来源/置信度；修改后重新校验；低置信需核对 |
+| TC-P6B-004 | 04-title-before-header.xlsx | 第 4 行表头；保留原始来源行；可修改表头及区域范围 |
+| TC-P6B-005 | 05-two-tables.xlsx | 两张表独立选择/映射；类别提示可见；确认重复不加倍 |
+| TC-P6B-006 | 06-text.txt 或粘贴同文 | 逐条核对名称/规格/数量/位置；前天依 referenceDate；不猜购买/生产日期；可编辑；无 AI 可新增候选 |
+| TC-P6B-007 | 07-ambiguous.xlsx | 无法识别时手动指定范围/字段；不自信误导入；错误数量/日期阻止确认 |
+
+额外回归：Phase 6A 标准 Excel/CSV/TSV、导出和 JSON 备份/恢复；断网/部分失败重试沿用同一预览；修改后旧 revision 不可确认；另一用户不可读写 job；过期 job 不可执行。大量候选以 20 行分次执行，检查失败行和重试结果。微信真机布局/滚动尚待验证。
+
 > 文件建议路径：`docs/MANUAL_TEST_CASES.md`  
 > 适用版本：V0.1  
 > 适用对象：开发者 / Codex / 手工验收  

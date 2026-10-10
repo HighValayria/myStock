@@ -3,8 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "build": "tsc -p tsconfig.json",
-    "test": "npm run build && node dist/tests/run-tests.js"
+    "build": "tsc -p tsconfig.json && node scripts/prepare-smart-import.js",
+    "test": "npm run build && node dist/tests/run-tests.js && node tests/smart-import.test.js"
   },
   "devDependencies": {
     "typescript": "^7.0.2"

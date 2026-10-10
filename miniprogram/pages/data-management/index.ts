@@ -5,6 +5,19 @@ import { mapUserError } from '../../utils/phase2-form';
 type ImportPreview = import('../../services/phase2-ui-service').Phase6ImportPreview;
 type ImportResult = import('../../services/phase2-ui-service').Phase6ImportResult;
 type BackupValidation = import('../../services/phase2-ui-service').Phase6BackupValidation;
+type SmartPreview = import('../../services/phase2-ui-service').SmartImportPreview;
+const fieldChoices = [
+  ['UNKNOWN', '待指定'], ['IGNORE', '忽略'], ['item.name', '物品名称'], ['item.category', '类别'],
+  ['item.brand', '品牌'], ['item.specification', '规格'], ['item.unit', '单位'], ['batch.quantity', '数量'],
+  ['batch.location', '存放位置'], ['batch.purchaseDate', '购买日期'], ['batch.productionDate', '生产日期'],
+  ['batch.shelfLifeValue', '保质期数值'], ['batch.shelfLifeUnit', '保质期单位'], ['batch.expiryDate', '到期日期'],
+  ['batch.purchasePrice', '单位购买价格'], ['batch.purchaseChannel', '购买渠道'], ['batch.note', '备注'],
+  ['item.lowStockThreshold', '低库存阈值'], ['item.expiryWarningDays', '临期阈值'],
+].map(([field, label]) => ({ field, label }));
+type SmartView = SmartPreview & { plan: SmartPreview['plan'] & { tables: Array<SmartPreview['plan']['tables'][number] & { mapping: Array<SmartPreview['plan']['tables'][number]['mapping'][number] & { choiceIndex: number; label: string }> }> } };
+function smartView(preview: SmartPreview): SmartView {
+  return { ...preview, plan: { ...preview.plan, tables: preview.plan.tables.map(table => ({ ...table, mapping: table.mapping.map(mapping => ({ ...mapping, choiceIndex: Math.max(0, fieldChoices.findIndex(f => f.field === mapping.targetField)), label: fieldChoices.find(f => f.field === mapping.targetField)?.label || '待指定' })) })) } };
+}
 
 interface DataManagementPageData {
   loading: boolean;
@@ -19,6 +32,13 @@ interface DataManagementPageData {
   exportText: string;
   restoreText: string;
   restorePreview: BackupValidation | null;
+  smartPreview: SmartView | null;
+  smartMode: 'file' | 'text';
+  allowAI: boolean;
+  fieldChoices: typeof fieldChoices;
+  candidateEdits: Array<{ id: string; values: Record<string, string | null>; confirmed: boolean }>;
+  smartDirty: boolean;
+  editingCandidateId: string;
 }
 
 interface DataManagementPage {
@@ -32,6 +52,8 @@ interface DataManagementPage {
   exportJson(): Promise<void>;
   previewRestore(): Promise<void>;
   restoreBackup(): Promise<void>;
+  recognizeSmart(): Promise<void>;
+  revalidateSmart(): Promise<void>;
 }
 
 function getPhase2Service(): typeof import('../../services/phase2-ui-service') {
@@ -73,7 +95,7 @@ function parseJson(text: string): unknown {
 }
 
 function isXlsxFile(name: string, base64: string): boolean {
-  return /\.xlsx$/i.test(name) || base64.startsWith('UEs');
+  return /\.(xlsx|xls)$/i.test(name) || base64.startsWith('UEs');
 }
 
 Page({
@@ -90,10 +112,17 @@ Page({
     exportText: '',
     restoreText: '',
     restorePreview: null,
+    smartPreview: null,
+    smartMode: 'file',
+    allowAI: false,
+    fieldChoices,
+    candidateEdits: [],
+    smartDirty: false,
+    editingCandidateId: '',
   } as DataManagementPageData,
 
   onImportInput(this: DataManagementPage, event: { detail: { value: string } }) {
-    this.setData({ importText: event.detail.value, importFileName: '', importFileBase64: '', importPreview: null, importResult: null, error: '' });
+    this.setData({ importText: event.detail.value, importFileName: '', importFileBase64: '', importPreview: null, importResult: null, error: '', smartPreview: null, candidateEdits: [], importOperationId: '' });
   },
 
   onRestoreInput(this: DataManagementPage, event: { detail: { value: string } }) {
@@ -110,7 +139,113 @@ Page({
       importPreview: null,
       importResult: null,
       error: '',
+      smartPreview: null,
+      candidateEdits: [],
+      importOperationId: '',
     });
+  },
+
+  setSmartMode(this: DataManagementPage, event: { currentTarget: { dataset: { mode: 'file' | 'text' } } }) {
+    this.setData({ smartMode: event.currentTarget.dataset.mode, smartPreview: null, candidateEdits: [], importResult: null });
+  },
+  onAIChange(this: DataManagementPage, event: { detail: { value: boolean } }) {
+    this.setData({ allowAI: event.detail.value });
+  },
+  copyTemplate() {
+    copyText(['物品名称', '类别', '品牌', '规格', '数量', '单位', '存放位置', '购买日期', '生产日期', '保质期数值', '保质期单位', '到期日期', '单位购买价格', '购买渠道', '低库存阈值', '临期阈值', '备注'].join('\t'));
+  },
+  async recognizeSmart(this: DataManagementPage) {
+    if (this.data.loading) return;
+    if (!this.data.importText.trim() && !this.data.importFileBase64) { wx.showToast({ title: '请先选择文件或输入文本', icon: 'none' }); return; }
+    if (this.data.smartMode === 'text' && this.data.importFileBase64) { wx.showToast({ title: '请切换文件导入', icon: 'none' }); return; }
+    this.setData({ loading: true, error: '', smartPreview: null, importResult: null, candidateEdits: [] });
+    try {
+      const preview = await getPhase2Service().previewSmartImport({ text: this.data.importText, fileBase64: this.data.importFileBase64, fileName: this.data.importFileName, sourceType: this.data.smartMode === 'text' ? 'text' : undefined, allowAI: this.data.allowAI || this.data.smartMode === 'text' });
+      this.setData({ smartPreview: smartView(preview), smartDirty: false });
+    } catch (error) { this.setData({ error: mapUserError(error) }); }
+    finally { this.setData({ loading: false }); }
+  },
+  onSheetChange(this: DataManagementPage, event: { currentTarget: { dataset: { index: number } }; detail: { value: boolean } }) {
+    const preview = this.data.smartPreview;
+    if (!preview) return;
+    const sheet = preview.plan.sheets.find(s => s.index === Number(event.currentTarget.dataset.index));
+    if (sheet) sheet.selected = event.detail.value;
+    this.setData({ smartPreview: preview, smartDirty: true });
+  },
+  onTableChange(this: DataManagementPage, event: { currentTarget: { dataset: { id: string } }; detail: { value: boolean } }) {
+    const preview = this.data.smartPreview;
+    const table = preview?.plan.tables.find(t => t.id === event.currentTarget.dataset.id);
+    if (table) table.selected = event.detail.value;
+    this.setData({ smartPreview: preview, smartDirty: true });
+  },
+  onMappingChange(this: DataManagementPage, event: { currentTarget: { dataset: { id: string; column: number } }; detail: { value: string } }) {
+    const preview = this.data.smartPreview;
+    const mapping = preview?.plan.tables.find(t => t.id === event.currentTarget.dataset.id)?.mapping.find(m => m.column === Number(event.currentTarget.dataset.column));
+    const choice = fieldChoices[Number(event.detail.value)];
+    if (mapping && choice) Object.assign(mapping, { targetField: choice.field, choiceIndex: Number(event.detail.value), label: choice.label, method: 'USER' });
+    this.setData({ smartPreview: preview, smartDirty: true });
+  },
+  onHintInput(this: DataManagementPage, event: { currentTarget: { dataset: { id: string; field: 'categoryHint' | 'locationHint' } }; detail: { value: string } }) {
+    const preview = this.data.smartPreview;
+    const table = preview?.plan.tables.find(t => t.id === event.currentTarget.dataset.id);
+    if (table) table[event.currentTarget.dataset.field] = event.detail.value;
+    this.setData({ smartPreview: preview, smartDirty: true });
+  },
+  onRegionInput(this: DataManagementPage, event: { currentTarget: { dataset: { id: string; field: 'headerRow' | 'endRow' | 'startColumn' | 'endColumn' } }; detail: { value: string } }) {
+    const preview = this.data.smartPreview;
+    const table = preview?.plan.tables.find(t => t.id === event.currentTarget.dataset.id);
+    if (!table || !event.detail.value) return;
+    table[event.currentTarget.dataset.field] = Number(event.detail.value) - 1;
+    table.mapping.forEach(mapping => { mapping.method = 'UNRESOLVED'; });
+    this.setData({ smartPreview: preview, smartDirty: true });
+  },
+  onCandidateInput(this: DataManagementPage, event: { currentTarget: { dataset: { id: string; field: string } }; detail: { value: string } }) {
+    const edits = [...this.data.candidateEdits];
+    let edit = edits.find(e => e.id === event.currentTarget.dataset.id);
+    if (!edit) { edit = { id: event.currentTarget.dataset.id, values: {}, confirmed: false }; edits.push(edit); }
+    edit.values[event.currentTarget.dataset.field] = event.detail.value;
+    edit.confirmed = false;
+    this.setData({ candidateEdits: edits, smartDirty: true });
+  },
+  confirmCandidate(this: DataManagementPage, event: { currentTarget: { dataset: { id: string } }; detail: { value: boolean } }) {
+    const edits = [...this.data.candidateEdits];
+    let edit = edits.find(e => e.id === event.currentTarget.dataset.id);
+    if (!edit) { edit = { id: event.currentTarget.dataset.id, values: {}, confirmed: false }; edits.push(edit); }
+    edit.confirmed = event.detail.value;
+    this.setData({ candidateEdits: edits, smartDirty: true });
+  },
+  addManualCandidate(this: DataManagementPage) {
+    const preview = this.data.smartPreview;
+    if (!preview) return;
+    const candidate = { id: `manual:${Date.now()}`, values: {}, source: { file: '手动录入', sourceText: '' }, confidence: 1, warnings: ['用户手动录入'], confirmed: false };
+    preview.candidates.push(candidate);
+    this.setData({ smartPreview: preview, candidateEdits: [...this.data.candidateEdits, { id: candidate.id, values: {}, confirmed: false }], editingCandidateId: candidate.id, smartDirty: true });
+  },
+  editCandidate(this: DataManagementPage, event: { currentTarget: { dataset: { id: string } } }) {
+    this.setData({ editingCandidateId: this.data.editingCandidateId === event.currentTarget.dataset.id ? '' : event.currentTarget.dataset.id });
+  },
+  async revalidateSmart(this: DataManagementPage) {
+    const preview = this.data.smartPreview;
+    if (!preview || this.data.loading) return;
+    this.setData({ loading: true, error: '' });
+    try {
+      const updated = await getPhase2Service().previewSmartImport({ jobId: preview.jobId, revision: preview.revision, changes: { sheets: preview.plan.sheets.map(s => ({ index: s.index, selected: s.selected })), tables: preview.plan.tables.map(t => ({ id: t.id, headerRow: t.headerRow, endRow: t.endRow, startColumn: t.startColumn, endColumn: t.endColumn, selected: t.selected, categoryHint: t.categoryHint || '', locationHint: t.locationHint || '', mapping: t.mapping.filter(m => m.method === 'USER').map(m => ({ column: m.column, targetField: m.targetField })) })) }, candidateEdits: this.data.candidateEdits });
+      this.setData({ smartPreview: smartView(updated), smartDirty: false });
+    } catch (error) { this.setData({ error: mapUserError(error) }); }
+    finally { this.setData({ loading: false }); }
+  },
+  async commitSmart(this: DataManagementPage) {
+    const preview = this.data.smartPreview;
+    if (!preview || this.data.loading) return;
+    if (this.data.smartDirty || preview.errorRows || preview.needsConfirmation || !preview.validRows) { wx.showToast({ title: '请校验并核对候选记录', icon: 'none' }); return; }
+    if (!await modal('确认导入', `将导入 ${preview.validRows} 条库存，并生成入库流水。`)) return;
+    this.setData({ loading: true, error: '' });
+    try {
+      const result = await getPhase2Service().commitSmartImport(preview.jobId, preview.revision);
+      this.setData({ importResult: result });
+      wx.showToast({ title: result.failedRows.length ? '部分导入失败，可重试' : '导入完成', icon: 'none' });
+    } catch (error) { this.setData({ error: mapUserError(error) }); }
+    finally { this.setData({ loading: false }); }
   },
 
   async chooseRestoreFile(this: DataManagementPage) {

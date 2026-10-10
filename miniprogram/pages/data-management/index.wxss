@@ -15,3 +15,11 @@
 .error-block { background: #fee4e2; color: #b42318; border-radius: 8rpx; padding: 18rpx; margin: 20rpx 0; font-size: 26rpx; }
 .error-line { color: #b42318; }
 .muted { color: #667085; font-size: 26rpx; margin: 16rpx 0; }
+.switch-line, .mapping-line, .field-line { display: flex; align-items: center; justify-content: space-between; gap: 16rpx; padding: 12rpx 0; font-size: 26rpx; }
+.switch-line > view, .mapping-line > view { min-width: 0; flex: 1; overflow-wrap: anywhere; }
+.preview-title { margin-top: 24rpx; }
+.table-region, .candidate-row { border-bottom: 1rpx solid #d0d5dd; padding: 18rpx 0; }
+.field-line text { width: 170rpx; flex-shrink: 0; }
+.field-line input { flex: 1; min-width: 0; border-bottom: 1rpx solid #d0d5dd; padding: 8rpx; background: #fff; }
+.picker-value { padding: 10rpx; background: #eef2f6; }
+.source-text { color: #667085; font-size: 24rpx; overflow-wrap: anywhere; }

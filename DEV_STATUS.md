@@ -2,6 +2,8 @@
 
 ## Current Phase
 
+Phase 6B is implemented with local automated verification on 2026-10-10, but manual acceptance is pending. Phase 6A remains the accepted baseline. Deploy updated dataManage, create private import_jobs and compile the miniapp. AI credentials are optional for workbook/manual mapping. No Phase 7 work has begun.
+
 Phase 6 implementation is accepted for V0.1 Excel / JSON Data Management. Automated verification passes, and user manual acceptance passed on 2026-10-10 after validating Excel import/export, JSON backup/restore, schema validation, and restore safety.
 
 Phase 5 implementation remains accepted for the V0.1 Analytics page. `Batch.purchasePrice` semantics are now frozen as unit purchase price, so inventory value can be calculated as positive Batch quantity × unit purchase price where price is present.
@@ -57,7 +59,7 @@ npm test
 Latest result:
 
 ```text
-63 tests passed
+63 existing tests + 26 Phase 6B tests passed (89 total)
 ```
 
 Coverage includes Phase 1/2/3 regression, Phase 4 Reminder and Restock lifecycle tests T-P4-A01 through T-P4-A16, Phase 5 Analytics tests T-P5-A01 through T-P5-A10, and Phase 6 Excel / JSON tests T-P6-A01 through T-P6-A19.
@@ -128,5 +130,9 @@ Deferred manual verification:
 - Two-account user isolation: no second authorized WeChat developer account is currently available.
 
 ## Phase 6 Readiness
+
+Phase 6B adds workbook IR, rule/AI structure and mapping, server-owned plan revisions, candidate editing/confirmation and chunked idempotent execution. Both standard and smart cloud imports use inventoryWrite.addStock bundled from its TypeScript source by npm run build. Old xlsx.js remains only for compatibility tests, not the deployed path. See docs/SMART_IMPORT_ARCHITECTURE.md and docs/TEST_REPORTS/phase_6b.md.
+
+Beta Release Gate is pending real AI/CloudBase/runtime/UI acceptance, draft cleanup policy and SDK dependency audit disposition.
 
 Phase 6 is accepted and can be used as the baseline for the next phase. Phase 3/4 manual acceptance remains pending in this document unless separately confirmed. Do not start Phase 7 unless the user explicitly requests it. TC-P2-009 remains blocked by product definition and does not count as a code failure.

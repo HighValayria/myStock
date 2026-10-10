@@ -134,6 +134,18 @@ FEFO consume flow:
 
 ## Development Diagnostic
 
+Phase 6B deployment:
+
+1. Install cloud dependencies: npm ci --prefix cloudfunctions/dataManage (SheetJS needs official CDN access).
+2. Run npm run build to generate the canonical inventory engine bundle and miniapp JS.
+3. Create import_jobs with no client read/write (`{"read": false, "write": false}`). Jobs are accessed only via dataManage with trusted OPENID.
+4. Upload dataManage using cloud dependency installation, including parsers/, import/, ai/ and package-lock.json. Recompile miniapp.
+5. Optional cloud variables: IMPORT_AI_BASE_URL (HTTPS API base), IMPORT_AI_KEY, IMPORT_AI_MODEL. Provider must support strict JSON Schema chat output. Never put keys in miniapp config or Git.
+6. Configure sufficient function timeout for up to eight sequential 15-second AI calls, within the real environment's supported limit. Inventory execution uses 20-row chunks and supports retry.
+7. Run TC-P6B manual cases with AI off/on. No AI still supports workbook/manual import; text extraction falls back to manually entered candidates.
+
+Jobs expire for execution after 24 hours. Physical cleanup is not configured; choose retention before Beta. Inventory backup excludes temporary jobs.
+
 Use the temporary development-only page:
 
 ```text

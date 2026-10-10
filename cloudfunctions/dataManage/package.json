@@ -3,6 +3,9 @@
   "version": "0.1.0",
   "main": "index.js",
   "dependencies": {
-    "wx-server-sdk": "latest"
+    "ajv": "^8.20.0",
+    "csv-parse": "^7.0.3",
+    "wx-server-sdk": "latest",
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
   }
 }

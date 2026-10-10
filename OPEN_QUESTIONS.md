@@ -34,7 +34,21 @@ Resolved for Phase 6: `Batch.purchasePrice` means unit purchase price. Inventory
 
 ### Q4: Standard Excel Template
 
-Resolved for Phase 6: the standard import template uses fixed Chinese headers documented in `docs/EXCEL_TEMPLATE.md`. Required fields are `物品名称` and `数量`; empty `单位` defaults to `个`. Deterministic aliases are allowed, but arbitrary intelligent Excel field mapping remains out of V0.1 scope.
+Resolved for Phase 6A: fixed Chinese headers remain the fallback. On 2026-10-10 the user explicitly authorized Phase 6B limited intelligent import. The scope amendment is synchronized to Design Freeze: AI proposes semantics, never writes inventory; standard import remains available without AI.
+
+### Q9: Phase 6B Production AI Provider
+
+Cloud-only `IMPORT_AI_BASE_URL`, `IMPORT_AI_KEY`, `IMPORT_AI_MODEL` are optional for workbook/manual import and required for model text extraction. No production credentials were supplied. Real structured-output compatibility, model accuracy, latency and cost acceptance remain pending. Unsupported providers fall back to manual mapping/candidate entry.
+
+### Q10: Import Draft Retention and CloudBase Dependencies
+
+Private `import_jobs` drafts expire for execution after 24 hours. Physical automatic deletion is not implemented; retention/cleanup policy remains to be selected. Temporary jobs are excluded from inventory backup.
+
+2026-10-10 npm audit reports 6 remaining findings (5 high, 1 moderate), all in existing wx-server-sdk transitive dependencies. New CSV parser was upgraded to patched 7.0.3; SheetJS and Ajv do not appear in findings. Assess the SDK chain before Beta; do not blindly downgrade a working CloudBase SDK.
+
+### Q11: Complex Workbook Limits
+
+Rules cover vertical tables; bounded AI regions and manual row/column edits supplement them. Arbitrary merged-header layouts, unknown side-by-side tables, encrypted workbooks and formulas without caches may require preparation or standard template fallback. Stronger decompression isolation for hostile workbook inputs is a public-release consideration. No OCR is implemented.
 
 ### Q5: “Multi-device Sync” Exclusion Wording
 

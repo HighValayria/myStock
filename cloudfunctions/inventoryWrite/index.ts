@@ -340,7 +340,7 @@ async function resolveRestockIfNeeded(tx: any, openid: string, itemId: string): 
   }
 }
 
-async function addStock(openid: string, input: any) {
+export async function addStock(openid: string, input: any) {
   assertPositive(input.quantity, 'quantity');
   assertString(input.locationId, 'locationId');
   assertString(input.expiryDate, 'expiryDate');

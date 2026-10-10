@@ -1,15 +1,70 @@
 <view class="page">
   <view class="header">
     <view class="title">数据管理</view>
-    <view class="subtitle">Excel 用于日常导入导出，JSON 用于完整备份与恢复</view>
   </view>
 
   <view wx:if="{{error}}" class="error-block">{{error}}</view>
   <view wx:if="{{loading}}" class="muted">处理中...</view>
 
   <view class="section">
-    <view class="section-title">Excel 导入</view>
+    <view class="section-title">导入数据</view>
     <view class="action-row">
+      <button size="mini" bindtap="setSmartMode" data-mode="file" type="{{smartMode === 'file' ? 'primary' : 'default'}}">从文件导入</button>
+      <button size="mini" bindtap="setSmartMode" data-mode="text" type="{{smartMode === 'text' ? 'primary' : 'default'}}">粘贴文本导入</button>
+      <button wx:if="{{smartMode === 'file'}}" size="mini" bindtap="chooseImportFile" disabled="{{loading}}">选择文件</button>
+    </view>
+    <view wx:if="{{importFileName}}" class="file-name">{{importFileName}}</view>
+    <textarea class="textarea" value="{{importText}}" maxlength="12000" placeholder="{{smartMode === 'text' ? '把你的库存描述粘贴到这里' : '选择 Excel / CSV / TSV / TXT 文件，或粘贴表格'}}" bindinput="onImportInput" disabled="{{loading}}" />
+    <view class="switch-line">允许 AI 识别 <switch checked="{{allowAI}}" bindchange="onAIChange" /></view>
+    <view wx:if="{{allowAI || smartMode === 'text'}}" class="file-name">识别所需文本与表格样本将发送至配置的 AI 服务。</view>
+    <button type="primary" bindtap="recognizeSmart" disabled="{{loading}}">识别并预览</button>
+    <view wx:if="{{smartPreview}}">
+      <view class="section-title preview-title">识别结果</view>
+      <view wx:for="{{smartPreview.plan.warnings}}" wx:key="*this" class="error-line">{{item}}</view>
+      <view wx:for="{{smartPreview.plan.sheets}}" wx:key="index" class="switch-line">
+        <view>{{item.name}} · {{item.role === 'CURRENT_INVENTORY' ? '当前库存' : item.role === 'HISTORICAL_DATA' ? '历史记录' : item.role === 'INSTRUCTIONS' ? '说明' : item.role === 'ANALYTICS' ? '统计' : item.role === 'REFERENCE' ? '参考资料' : item.role === 'IGNORE' ? '忽略' : '待判断'}}<view class="file-name">{{item.reason}} · {{item.confidence}}</view></view>
+        <switch checked="{{item.selected}}" data-index="{{item.index}}" bindchange="onSheetChange" />
+      </view>
+      <view wx:for="{{smartPreview.plan.tables}}" wx:for-item="table" wx:key="id" class="table-region">
+        <view class="switch-line">{{table.sheet}} · 第 {{table.headerRow + 1}}–{{table.endRow + 1}} 行 <switch checked="{{table.selected}}" data-id="{{table.id}}" bindchange="onTableChange" /></view>
+        <view class="field-line"><text>表头行</text><input type="number" value="{{table.headerRow + 1}}" data-id="{{table.id}}" data-field="headerRow" bindblur="onRegionInput" /></view>
+        <view class="field-line"><text>结束行</text><input type="number" value="{{table.endRow + 1}}" data-id="{{table.id}}" data-field="endRow" bindblur="onRegionInput" /></view>
+        <view class="field-line"><text>起始列</text><input type="number" value="{{table.startColumn + 1}}" data-id="{{table.id}}" data-field="startColumn" bindblur="onRegionInput" /></view>
+        <view class="field-line"><text>结束列</text><input type="number" value="{{table.endColumn + 1}}" data-id="{{table.id}}" data-field="endColumn" bindblur="onRegionInput" /></view>
+        <view class="field-line"><text>上下文类别</text><input value="{{table.categoryHint}}" data-id="{{table.id}}" data-field="categoryHint" bindinput="onHintInput" /></view>
+        <view class="field-line"><text>上下文位置</text><input value="{{table.locationHint}}" data-id="{{table.id}}" data-field="locationHint" bindinput="onHintInput" /></view>
+        <view wx:for="{{table.mapping}}" wx:for-item="mapping" wx:key="column" class="mapping-line">
+          <view>{{mapping.sourceColumn}}<view class="file-name">{{mapping.method}} · {{mapping.confidence}} · {{mapping.reason}}</view></view>
+          <picker range="{{fieldChoices}}" range-key="label" value="{{mapping.choiceIndex}}" data-id="{{table.id}}" data-column="{{mapping.column}}" bindchange="onMappingChange"><view class="picker-value">{{mapping.label}} ▾</view></picker>
+        </view>
+      </view>
+      <view class="section-title preview-title">候选库存</view>
+      <view wx:for="{{smartPreview.candidates}}" wx:for-item="candidate" wx:key="id" class="candidate-row">
+        <view class="file-name">{{candidate.source.sheet || candidate.source.file}} {{candidate.source.row ? '第' + candidate.source.row + '行' : ''}}</view>
+        <view class="source-text">{{candidate.source.sourceText}}</view>
+        <view>{{candidate.values['item.name'] || '名称缺失'}} · {{candidate.values['batch.quantity'] || '数量缺失'}}{{candidate.values['item.unit'] || '个'}} · {{candidate.values['batch.location'] || '位置未指定'}}</view>
+        <button size="mini" data-id="{{candidate.id}}" bindtap="editCandidate">{{editingCandidateId === candidate.id ? '收起' : '编辑'}}</button>
+        <view wx:if="{{editingCandidateId === candidate.id}}" wx:for="{{fieldChoices}}" wx:for-item="field" wx:key="field">
+          <view wx:if="{{field.field !== 'IGNORE' &amp;&amp; field.field !== 'UNKNOWN'}}" class="field-line"><text>{{field.label}}</text><input value="{{candidate.values[field.field]}}" data-id="{{candidate.id}}" data-field="{{field.field}}" bindinput="onCandidateInput" /></view>
+        </view>
+        <view wx:for="{{candidate.warnings}}" wx:key="*this" class="error-line">{{item}}</view>
+        <view class="switch-line">置信度 {{candidate.confidence}} · 已核对 <switch checked="{{candidate.confirmed}}" data-id="{{candidate.id}}" bindchange="confirmCandidate" /></view>
+      </view>
+      <button wx:if="{{smartPreview.plan.sourceType === 'text'}}" size="mini" bindtap="addManualCandidate">新增候选</button>
+      <view class="result">
+        <view>可导入 {{smartPreview.validRows}} 条 · 待核对 {{smartPreview.needsConfirmation}} 条 · 错误 {{smartPreview.errorRows}} 条</view>
+        <view>将新建类别：{{smartPreview.creates.categoryNames}}</view>
+        <view>将新建位置：{{smartPreview.creates.locationNames}}</view>
+        <view wx:for="{{smartPreview.errors}}" wx:key="rowNumber" class="error-line">候选 {{item.rowNumber - 1}}：{{item.message}}</view>
+      </view>
+      <view class="action-row preview-title"><button size="mini" bindtap="revalidateSmart" disabled="{{loading}}">重新校验</button><button size="mini" type="primary" bindtap="commitSmart" disabled="{{loading || smartDirty || smartPreview.errorRows || smartPreview.needsConfirmation || !smartPreview.validRows}}">确认导入</button></view>
+    </view>
+  </view>
+
+  <view class="section">
+    <view class="section-title">标准模板导入</view>
+    <view class="action-row">
+      <button size="mini" bindtap="copyTemplate">复制标准模板</button>
       <button size="mini" bindtap="chooseImportFile">选择文件</button>
       <button size="mini" type="primary" bindtap="previewImport">预览</button>
       <button size="mini" class="success" bindtap="commitImport">确认导入</button>
@@ -24,6 +79,7 @@
     </view>
     <view wx:if="{{importResult}}" class="result">
       导入完成：成功 {{importResult.successRows}} 行，跳过 {{importResult.skippedRows}} 行，新建物品 {{importResult.createdItems}} 个，新增批次 {{importResult.addedBatches}} 个，合并批次 {{importResult.mergedBatches}} 个
+      <view wx:for="{{importResult.failedRows}}" wx:key="rowNumber" class="error-line">第 {{item.rowNumber}} 行导入失败：{{item.message}}</view>
     </view>
   </view>
 

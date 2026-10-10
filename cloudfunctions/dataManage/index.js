@@ -1,7 +1,9 @@
 "use strict";
 
 const cloud = require("wx-server-sdk");
-const { parseXlsxBuffer } = require("./xlsx");
+const { parseSource } = require("./parsers/source");
+const { createImportPlan, applyChanges, generateCandidates, candidateRows } = require("./import/pipeline");
+const { addStock } = require("./import/inventory-engine");
 
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 
@@ -180,7 +182,7 @@ function parseSheetTable(sheetRows) {
 function parseExcelPayload(payload) {
   if (payload.fileBase64) {
     const buffer = Buffer.from(String(payload.fileBase64), "base64");
-    if (buffer.length >= 2 && buffer[0] === 0x50 && buffer[1] === 0x4b) return parseSheetTable(parseXlsxBuffer(buffer));
+    if (buffer.length >= 2 && buffer[0] === 0x50 && buffer[1] === 0x4b) return parseSheetTable(parseSource(payload).sheets[0].rows);
     return parseTable(buffer.toString("utf8"));
   }
   const text = payload.text || "";
@@ -300,123 +302,8 @@ async function ensureLocation(openid, name) {
   await db.collection(COLLECTIONS.locations).add({ data: doc });
   return doc;
 }
-async function txGet(tx, collectionName, id, openid) {
-  const result = await tx.collection(collectionName).doc(id).get();
-  const doc = result.data;
-  if (!doc || doc._openid !== openid) throw dataError("NOT_FOUND", `${collectionName} not found: ${id}`);
-  return doc;
-}
 async function txAdd(tx, collectionName, doc) { await tx.collection(collectionName).add({ data: doc }); }
-async function txUpdate(tx, collectionName, id, data) { await tx.collection(collectionName).doc(id).update({ data }); }
 async function txRemove(tx, collectionName, id) { await tx.collection(collectionName).doc(id).remove(); }
-function buildReminderCycleKey(item, batch, type) {
-  if (batch) return `${batch._id}:${type}:${effectiveExpiry(batch)}`;
-  return `${item._id}:${type}:${item.lowStockThreshold ?? "none"}`;
-}
-async function ensureReminder(tx, openid, item, batch, type) {
-  const cycleKey = buildReminderCycleKey(item, batch, type);
-  const existing = await tx.collection(COLLECTIONS.reminders).where({ _openid: openid, cycleKey }).get();
-  const open = (existing.data || []).find((rem) => rem.status === "ACTIVE" || rem.status === "READ" || rem.status === "DISMISSED");
-  if (open) return;
-  const timestamp = now();
-  await txAdd(tx, COLLECTIONS.reminders, {
-    _id: createId("rem"),
-    _openid: openid,
-    schemaVersion: SCHEMA_VERSION,
-    type,
-    itemId: item._id,
-    batchId: batch ? batch._id : null,
-    status: "ACTIVE",
-    cycleKey,
-    createdAt: timestamp,
-    updatedAt: timestamp,
-    readAt: null,
-    dismissedAt: null,
-    resolvedAt: null,
-  });
-}
-async function resolveOpenReminders(tx, openid, itemId, batchId, types) {
-  const existing = await tx.collection(COLLECTIONS.reminders).where({ _openid: openid, itemId }).get();
-  const timestamp = now();
-  for (const reminder of existing.data || []) {
-    const open = reminder.status === "ACTIVE" || reminder.status === "READ" || reminder.status === "DISMISSED";
-    if (open && types.includes(reminder.type) && (reminder.batchId || null) === batchId) {
-      await txUpdate(tx, COLLECTIONS.reminders, reminder._id, { status: "RESOLVED", resolvedAt: timestamp, updatedAt: timestamp });
-    }
-  }
-}
-async function recomputeRemindersInTransaction(tx, openid, item, batches) {
-  const warningDays = item.expiryWarningDays ?? 30;
-  for (const batch of batches) {
-    if (batch.quantity <= 0) {
-      await resolveOpenReminders(tx, openid, item._id, batch._id, ["EXPIRING", "EXPIRED"]);
-      continue;
-    }
-    const status = expiryStatus(batch, warningDays);
-    if (status === "EXPIRED") {
-      await resolveOpenReminders(tx, openid, item._id, batch._id, ["EXPIRING"]);
-      await ensureReminder(tx, openid, item, batch, "EXPIRED");
-    } else if (status === "EXPIRING") {
-      await resolveOpenReminders(tx, openid, item._id, batch._id, ["EXPIRED"]);
-      await ensureReminder(tx, openid, item, batch, "EXPIRING");
-    } else {
-      await resolveOpenReminders(tx, openid, item._id, batch._id, ["EXPIRING", "EXPIRED"]);
-    }
-  }
-  const total = batches.reduce((sum, batch) => sum + Number(batch.quantity || 0), 0);
-  const status = stockStatus(total, item.lowStockThreshold);
-  if (status === "ZERO") {
-    await resolveOpenReminders(tx, openid, item._id, null, ["LOW_STOCK"]);
-    await ensureReminder(tx, openid, item, null, "ZERO_STOCK");
-  } else if (status === "LOW") {
-    await resolveOpenReminders(tx, openid, item._id, null, ["ZERO_STOCK"]);
-    await ensureReminder(tx, openid, item, null, "LOW_STOCK");
-  } else {
-    await resolveOpenReminders(tx, openid, item._id, null, ["LOW_STOCK", "ZERO_STOCK"]);
-  }
-}
-async function resolveRestockIfNeeded(tx, openid, itemId) {
-  const result = await tx.collection(COLLECTIONS.restockItems).where({ _openid: openid, itemId, status: "NEEDED" }).get();
-  const timestamp = now();
-  for (const restock of result.data || []) {
-    await txUpdate(tx, COLLECTIONS.restockItems, restock._id, { status: "PURCHASED", resolvedAt: timestamp, updatedAt: timestamp });
-  }
-}
-async function addStockRow(openid, row, importOperationId) {
-  const category = await ensureCategory(openid, row.categoryName);
-  const location = await ensureLocation(openid, row.locationName);
-  const operationId = `${importOperationId}:row:${row.rowNumber}`;
-  const existingTx = await queryOne(COLLECTIONS.transactions, { _openid: openid, operationId });
-  if (existingTx) return { skipped: true, merged: false, itemCreated: false };
-  const existingItem = row.itemId ? await queryOne(COLLECTIONS.items, { _openid: openid, _id: row.itemId }) : null;
-  return db.runTransaction(async (tx) => {
-    let item = existingItem;
-    const timestamp = now();
-    if (!item) {
-      item = { _id: createId("item"), _openid: openid, schemaVersion: SCHEMA_VERSION, ...row.item, categoryId: category._id, defaultLocationId: location._id, createdAt: timestamp, updatedAt: timestamp };
-      await txAdd(tx, COLLECTIONS.items, item);
-    }
-    const candidates = await tx.collection(COLLECTIONS.batches).where({ _openid: openid, itemId: item._id, locationId: location._id, purchaseDate: row.purchaseDate || null, expiryDate: row.expiryDate }).get();
-    let batch = candidates.data[0] || null;
-    let merged = false;
-    if (batch) {
-      merged = true;
-      await txUpdate(tx, COLLECTIONS.batches, batch._id, { quantity: Number(batch.quantity || 0) + row.quantity, updatedAt: timestamp });
-    } else {
-      batch = { _id: createId("batch"), _openid: openid, schemaVersion: SCHEMA_VERSION, itemId: item._id, quantity: row.quantity, locationId: location._id, purchaseDate: row.purchaseDate || null, productionDate: row.productionDate || null, shelfLifeValue: row.shelfLifeValue, shelfLifeUnit: row.shelfLifeUnit, expiryDate: row.expiryDate, purchasePrice: row.purchasePrice, purchaseChannel: row.purchaseChannel, openedDate: null, openedExpiryDate: null, note: row.note || "", createdAt: timestamp, updatedAt: timestamp };
-      await txAdd(tx, COLLECTIONS.batches, batch);
-    }
-    await txAdd(tx, COLLECTIONS.transactions, { _id: createId("tx"), _openid: openid, schemaVersion: SCHEMA_VERSION, itemId: item._id, batchId: batch._id, type: "ADD", quantity: row.quantity, reason: "PURCHASE", note: row.note ? `${row.note}；来源：Excel导入` : "来源：Excel导入", operationId, createdAt: timestamp });
-    const batches = (await tx.collection(COLLECTIONS.batches).where({ _openid: openid, itemId: item._id }).get()).data || [];
-    const nextBatch = { ...batch, quantity: merged ? Number(batch.quantity || 0) + row.quantity : batch.quantity };
-    const recomputeBatches = batches.some((candidate) => candidate._id === nextBatch._id)
-      ? batches.map((candidate) => candidate._id === nextBatch._id ? nextBatch : candidate)
-      : [...batches, nextBatch];
-    await recomputeRemindersInTransaction(tx, openid, item, recomputeBatches);
-    await resolveRestockIfNeeded(tx, openid, item._id);
-    return { skipped: false, merged, itemCreated: !existingItem };
-  });
-}
 async function commitExcelImport(openid, payload) {
   const preview = await previewExcelImport(openid, payload);
   if (preview.errors.length) throw dataError("VALIDATION_ERROR", "存在错误行，请修正后再导入");
@@ -428,7 +315,7 @@ async function commitExcelImport(openid, payload) {
   const failedRows = [];
   for (const row of preview.rows) {
     try {
-      const result = await addStockRow(openid, row, preview.importOperationId);
+      const result = await executeCandidateRow(openid, row, preview.importOperationId);
       if (result.skipped) skippedRows += 1;
       else {
         successRows += 1;
@@ -441,6 +328,91 @@ async function commitExcelImport(openid, payload) {
     }
   }
   return { importOperationId: preview.importOperationId, successRows, skippedRows, failedRows, createdItems, addedBatches, mergedBatches };
+}
+async function executeCandidateRow(openid, row, importOperationId) {
+  const operationId = `${importOperationId}:row:${row.sourceId || row.rowNumber}`;
+  const category = await ensureCategory(openid, row.categoryName);
+  const location = await ensureLocation(openid, row.locationName);
+  // Refresh matching after preceding rows: several candidates can share a new Item.
+  const items = await queryAll(COLLECTIONS.items, { _openid: openid });
+  const existing = items.find(item => itemKey(item) === row.itemKey);
+  const result = await addStock(openid, {
+    itemId: existing?._id,
+    item: existing ? undefined : { ...row.item, categoryId: category._id, defaultLocationId: location._id },
+    quantity: row.quantity, locationId: location._id, purchaseDate: row.purchaseDate,
+    productionDate: row.productionDate, shelfLifeValue: row.shelfLifeValue, shelfLifeUnit: row.shelfLifeUnit,
+    expiryDate: row.expiryDate, purchasePrice: row.purchasePrice, purchaseChannel: row.purchaseChannel,
+    note: `${row.note || ""}；导入来源：${row.provenance || row.sourceId || row.rowNumber}`, operationId,
+  });
+  return { skipped: Boolean(result.idempotent), merged: result.merged, itemCreated: !existing && !result.idempotent };
+}
+async function loadImportJob(openid, jobId) {
+  const job = await queryOne("import_jobs", { _openid: openid, _id: jobId });
+  if (!job) throw dataError("NOT_FOUND", "导入预览不存在");
+  if (job.expiresAt < now()) throw dataError("VALIDATION_ERROR", "导入预览已过期，请重新识别");
+  return job;
+}
+async function previewSmartImport(openid, payload) {
+  let job;
+  if (payload.jobId) {
+    job = await loadImportJob(openid, payload.jobId);
+    if (job.locked) throw dataError("VALIDATION_ERROR", "导入已确认，不能修改；可继续重试同一导入");
+    if (payload.revision !== job.revision) throw dataError("VALIDATION_ERROR", "预览版本已变化，请重新识别");
+    job.plan = applyChanges(job, payload.changes);
+    job.edits = payload.candidateEdits || [];
+    job.revision += 1;
+  } else {
+    const parsed = await createImportPlan(payload);
+    job = { _id: createId("import"), _openid: openid, ...parsed, edits: [], revision: 1, locked: false, createdAt: now(), expiresAt: now() + 24 * 3600000 };
+  }
+  const candidates = generateCandidates(job.source, job.plan, job.edits);
+  for (const candidate of candidates) {
+    const previous = job.preview?.candidates.find(c => c.id === candidate.id);
+    if (previous?.confirmed && JSON.stringify(previous.values) !== JSON.stringify(candidate.values)) candidate.confirmed = false;
+  }
+  const rows = candidateRows(candidates);
+  const preview = previewRows(rows, [], await allUserData(openid), job._id);
+  preview.rows.forEach(row => {
+    const candidate = candidates[row.rowNumber - 2];
+    row.sourceId = candidate.id;
+    row.provenance = [candidate.source.file, candidate.source.sheet, candidate.source.row ? `第${candidate.source.row}行` : candidate.source.sourceText].filter(Boolean).join(" / ");
+  });
+  const needsConfirmation = candidates.filter(c => !c.confirmed && (c.confidence < 0.85 || c.warnings.length)).length;
+  job.preview = { ...preview, candidates, needsConfirmation };
+  if (Buffer.byteLength(JSON.stringify(job)) > 900000) throw dataError("VALIDATION_ERROR", "导入预览过大，请拆分文件");
+  if (payload.jobId) {
+    const { _id, ...data } = job;
+    await db.runTransaction(async tx => {
+      const current = (await tx.collection("import_jobs").doc(_id).get()).data;
+      if (current._openid !== openid || current.locked || current.revision !== payload.revision) throw dataError("VALIDATION_ERROR", "预览已变化或已确认");
+      await tx.collection("import_jobs").doc(_id).update({ data });
+    });
+  }
+  else await db.collection("import_jobs").add({ data: job });
+  return { ...job.preview, jobId: job._id, revision: job.revision, plan: job.plan, metrics: job.metrics };
+}
+async function commitSmartImport(openid, payload) {
+  let job = await loadImportJob(openid, payload.jobId);
+  if (job.revision !== payload.revision) throw dataError("VALIDATION_ERROR", "预览版本不一致，请重新校验");
+  if (!payload.confirmed || job.preview.errorRows || job.preview.needsConfirmation || !job.preview.validRows) throw dataError("VALIDATION_ERROR", "请先修正错误并确认待核对候选");
+  // Freeze the reviewed revision atomically before any inventory writes.
+  await db.runTransaction(async tx => {
+    const current = (await tx.collection("import_jobs").doc(job._id).get()).data;
+    if (current._openid !== openid || current.revision !== payload.revision) throw dataError("VALIDATION_ERROR", "预览已变化");
+    await tx.collection("import_jobs").doc(job._id).update({ data: { locked: true } });
+  });
+  job = await loadImportJob(openid, job._id);
+  const result = { importOperationId: job._id, successRows: 0, skippedRows: 0, createdItems: 0, addedBatches: 0, mergedBatches: 0, failedRows: [] };
+  const offset = payload.offset ?? 0;
+  if (!Number.isInteger(offset) || offset < 0 || offset > job.preview.rows.length) throw dataError("VALIDATION_ERROR", "导入分页无效");
+  for (const row of job.preview.rows.slice(offset, offset + 20)) {
+    try {
+      const done = await executeCandidateRow(openid, row, job._id);
+      if (done.skipped) result.skippedRows++;
+      else { result.successRows++; if (done.itemCreated) result.createdItems++; if (done.merged) result.mergedBatches++; else result.addedBatches++; }
+    } catch (error) { result.failedRows.push({ rowNumber: row.rowNumber, message: error.message }); }
+  }
+  return { ...result, nextOffset: offset + 20 < job.preview.rows.length ? offset + 20 : null };
 }
 async function exportBackup(openid) {
   const snapshot = await allUserData(openid);
@@ -538,6 +510,8 @@ exports.main = async function main(event) {
     if (!openid) throw dataError("UNAUTHENTICATED", "Missing OPENID");
     if (!event || !event.action) throw dataError("VALIDATION_ERROR", "action is required");
     if (event.action === "previewExcelImport") return ok(await previewExcelImport(openid, event.payload || {}));
+    if (event.action === "previewSmartImport") return ok(await previewSmartImport(openid, event.payload || {}));
+    if (event.action === "commitSmartImport") return ok(await commitSmartImport(openid, event.payload || {}));
     if (event.action === "commitExcelImport") return ok(await commitExcelImport(openid, event.payload || {}));
     if (event.action === "exportExcelText") return ok(await exportExcelText(openid));
     if (event.action === "exportBackup") return ok(await exportBackup(openid));
