@@ -12,6 +12,12 @@ Read path for Phase 2 UI:
 Page -> Service -> wx.cloud.callFunction -> inventoryRead Cloud Function -> Cloud Database
 ```
 
+Data management path for Phase 6:
+
+```text
+Page -> Service -> wx.cloud.callFunction -> dataManage Cloud Function -> Cloud Database
+```
+
 General repository reads can still exist for lower-level infrastructure and tests, but Phase 2 user pages must not issue client-side `_openid` queries.
 
 Write path for core inventory mutations:
@@ -53,6 +59,7 @@ Required cloud functions:
 - `inventoryWrite`: performs core inventory mutations and Phase 2 edit writes in server-side transactions.
 - `inventoryRead`: reads Phase 2 inventory lists and item details using server-side OPENID.
 - `taxonomyManage`: manages Phase 2 category/location defaults, selection data, and user-created category/location records using server-side OPENID.
+- `dataManage`: performs Phase 6 Excel import/export and JSON backup/restore using server-side OPENID.
 - `dbInit`: documents expected collections and recommended indexes; it is intentionally non-destructive.
 
 Deployment note: each cloud function directory includes a deployable `index.js`. In WeChat DevTools, deploy the function folder with `upload and deploy: cloud install dependencies`. Do not deploy only the `.ts` source file.
@@ -99,7 +106,7 @@ Cloud Database permissions must prevent cross-user access. Minimum expectation:
 - A user can create documents scoped to their own identity only through trusted code paths.
 - A user cannot read or update documents owned by another `_openid`.
 
-The Repository layer applies `_openid` filters for lower-level reads. Phase 2 user-facing reads use `inventoryRead` because the mini program client must not construct `_openid` queries directly. The `inventoryWrite`, `inventoryRead`, and `taxonomyManage` cloud functions use server-side `OPENID` and ignore client-provided user identity.
+The Repository layer applies `_openid` filters for lower-level reads. Phase 2 user-facing reads use `inventoryRead` because the mini program client must not construct `_openid` queries directly. The `inventoryWrite`, `inventoryRead`, `taxonomyManage`, and `dataManage` cloud functions use server-side `OPENID` and ignore client-provided user identity.
 
 ## Consistency Guarantees
 
@@ -109,6 +116,13 @@ The Repository layer applies `_openid` filters for lower-level reads. Phase 2 us
 - If Transaction creation fails, Batch changes roll back.
 - Reminder recompute and RestockItem updates caused by the same mutation are performed inside the same transaction.
 - `operationId` is checked inside the transaction so retries do not double-add, double-consume, or create duplicate Transactions.
+
+`dataManage` uses server-side validation before writes:
+
+- Excel import creates ADD Transactions and uses `importOperationId + rowNumber` idempotency.
+- JSON restore validates schemaVersion and references before replacement.
+- JSON restore rebinds all restored rows to the current server-side OPENID and does not trust backup `_openid`.
+- Restore replacement is executed inside the cloud function transaction path.
 
 FEFO consume flow:
 

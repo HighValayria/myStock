@@ -304,6 +304,14 @@ V0.1 不追求复杂 BI，只保留真正有意义的统计。
 
 不同单位的库存数量不能直接相加后作为“数量占比”。
 
+`Batch.purchasePrice` 在 V0.1 中固定表示单位购买价格。库存价值按有价格记录的正库存 Batch 计算：
+
+```text
+库存价值 = Σ(Batch.quantity × Batch.purchasePrice)
+```
+
+没有价格记录的 Batch 不按 0 元计算，界面必须同时展示价格覆盖情况。
+
 ---
 
 ## 3.5 提醒页
@@ -504,6 +512,8 @@ DAY
 MONTH
 YEAR
 ```
+
+`purchasePrice` 表示单位购买价格，不是整批总价。若 Batch 已部分消耗，剩余库存价值按当前 `quantity × purchasePrice` 估算。
 
 不永久保存：
 
@@ -1332,6 +1342,34 @@ AI API 如果以后加入，也必须由云函数 / 后端调用，不能把模�
 3. 展示数据概况
 4. 用户确认
 5. 正式覆盖或合并
+
+标准 Excel 导入字段固定为：
+
+```text
+物品名称
+类别
+品牌
+规格
+数量
+单位
+存放位置
+购买日期
+生产日期
+保质期数值
+保质期单位
+到期日期
+单位购买价格
+购买渠道
+低库存阈值
+临期阈值
+备注
+```
+
+其中 `物品名称` 与 `数量` 必填；`单位` 为空时默认为 `个`。Item 匹配规则为 `name + specification + brand + unit`，不得只按名称合并。Batch 合并沿用 `itemId + locationId + purchaseDate + expiryDate`。
+
+Excel 导入必须生成 ADD Transaction，并通过 `importOperationId + rowNumber` 保证重复提交幂等。Excel 导出可以包含剩余天数、保质期状态、库存状态等派生展示列，但这些派生列不得作为主事实导入保存。
+
+JSON 恢复是完整备份恢复：写入前必须完成 schemaVersion 与引用关系校验，恢复时不得信任备份中的 `_openid`，必须重新绑定为当前微信用户身份。
 
 ---
 

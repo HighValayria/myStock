@@ -152,6 +152,65 @@ export interface Phase5AnalysisQuery {
   range?: AnalysisRange;
 }
 
+export interface Phase6ImportPreview {
+  importOperationId: string;
+  totalRows: number;
+  validRows: number;
+  errorRows: number;
+  errors: Array<{ rowNumber: number; message: string }>;
+  unknownFields: string[];
+  creates: {
+    itemCount: number;
+    batchCount: number;
+    categoryNames: string[];
+    locationNames: string[];
+  };
+}
+
+export interface Phase6ImportResult {
+  importOperationId: string;
+  successRows: number;
+  skippedRows: number;
+  failedRows: Array<{ rowNumber: number; message: string }>;
+  createdItems: number;
+  addedBatches: number;
+  mergedBatches: number;
+}
+
+export interface Phase6BackupValidation {
+  valid: boolean;
+  errors: string[];
+  summary: {
+    categories: number;
+    items: number;
+    batches: number;
+    transactions: number;
+    locations: number;
+    reminders: number;
+    restockItems: number;
+    hasSettings: boolean;
+  };
+}
+
+export interface Phase6ExcelExport {
+  fileName: string;
+  text: string;
+}
+
+export interface Phase6BackupExport {
+  schemaVersion: number;
+  appVersion: string;
+  exportedAt: string;
+  categories: unknown[];
+  items: unknown[];
+  batches: unknown[];
+  transactions: unknown[];
+  locations: unknown[];
+  reminders: unknown[];
+  restockItems: unknown[];
+  settings: unknown | null;
+}
+
 let cachedContext: Phase2Context | null = null;
 
 async function getOpenId(): Promise<string> {
@@ -286,6 +345,30 @@ export async function getAnalysisOverview(options: Phase5AnalysisQuery = {}): Pr
   return callCloudFunction<AnalysisOverview>('inventoryRead', 'getAnalysisOverview', {
     range: options.range || '30d',
   });
+}
+
+export async function previewExcelImport(text: string, importOperationId?: string): Promise<Phase6ImportPreview> {
+  return callCloudFunction<Phase6ImportPreview>('dataManage', 'previewExcelImport', { text, importOperationId });
+}
+
+export async function commitExcelImport(text: string, importOperationId: string): Promise<Phase6ImportResult> {
+  return callCloudFunction<Phase6ImportResult>('dataManage', 'commitExcelImport', { text, importOperationId });
+}
+
+export async function exportExcelText(): Promise<Phase6ExcelExport> {
+  return callCloudFunction<Phase6ExcelExport>('dataManage', 'exportExcelText');
+}
+
+export async function exportBackup(): Promise<Phase6BackupExport> {
+  return callCloudFunction<Phase6BackupExport>('dataManage', 'exportBackup');
+}
+
+export async function previewRestoreBackup(backup: unknown): Promise<Phase6BackupValidation> {
+  return callCloudFunction<Phase6BackupValidation>('dataManage', 'previewRestore', { backup });
+}
+
+export async function restoreBackup(backup: unknown): Promise<Phase6BackupValidation> {
+  return callCloudFunction<Phase6BackupValidation>('dataManage', 'restoreBackup', { backup });
 }
 
 export async function addStock(input: AddStockInput) {

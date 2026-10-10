@@ -1,0 +1,54 @@
+<view class="page">
+  <view class="header">
+    <view class="title">数据管理</view>
+    <view class="subtitle">Excel 用于日常导入导出，JSON 用于完整备份与恢复</view>
+  </view>
+
+  <view wx:if="{{error}}" class="error-block">{{error}}</view>
+  <view wx:if="{{loading}}" class="muted">处理中...</view>
+
+  <view class="section">
+    <view class="section-title">Excel 导入</view>
+    <view class="action-row">
+      <button size="mini" bindtap="chooseImportFile">选择文件</button>
+      <button size="mini" type="primary" bindtap="previewImport">预览</button>
+      <button size="mini" class="success" bindtap="commitImport">确认导入</button>
+    </view>
+    <textarea class="textarea" value="{{importText}}" placeholder="粘贴标准 Excel/CSV/TSV 内容。必填：物品名称、数量；单位为空时默认为 个。" bindinput="onImportInput" />
+    <view wx:if="{{importPreview}}" class="result">
+      <view>预览：共 {{importPreview.totalRows}} 行，{{importPreview.validRows}} 行可导入，{{importPreview.errorRows}} 行错误</view>
+      <view wx:if="{{importPreview.unknownFields.length}}">未知字段：{{importPreview.unknownFields}}</view>
+      <view>新增物品 {{importPreview.creates.itemCount}} 个，批次 {{importPreview.creates.batchCount}} 个</view>
+      <view wx:for="{{importPreview.errors}}" wx:key="rowNumber" class="error-line">第 {{item.rowNumber}} 行：{{item.message}}</view>
+    </view>
+    <view wx:if="{{importResult}}" class="result">
+      导入完成：成功 {{importResult.successRows}} 行，跳过 {{importResult.skippedRows}} 行，新建物品 {{importResult.createdItems}} 个，新增批次 {{importResult.addedBatches}} 个，合并批次 {{importResult.mergedBatches}} 个
+    </view>
+  </view>
+
+  <view class="section">
+    <view class="section-title">导出</view>
+    <view class="action-row">
+      <button size="mini" type="primary" bindtap="exportExcel">导出 Excel</button>
+      <button size="mini" type="primary" bindtap="exportJson">导出 JSON 备份</button>
+      <button size="mini" bindtap="copyExport">复制结果</button>
+    </view>
+    <view wx:if="{{exportFileName}}" class="file-name">{{exportFileName}}</view>
+    <textarea class="textarea output" value="{{exportText}}" placeholder="导出内容会显示在这里，并自动复制到剪贴板。" disabled />
+  </view>
+
+  <view class="section">
+    <view class="section-title">JSON 恢复</view>
+    <view class="action-row">
+      <button size="mini" bindtap="chooseRestoreFile">选择备份</button>
+      <button size="mini" type="primary" bindtap="previewRestore">校验</button>
+      <button size="mini" class="danger" bindtap="restoreBackup">确认恢复</button>
+    </view>
+    <textarea class="textarea" value="{{restoreText}}" placeholder="粘贴完整 JSON 备份。恢复会替换当前账号数据。" bindinput="onRestoreInput" />
+    <view wx:if="{{restorePreview}}" class="result">
+      <view>{{restorePreview.valid ? '备份校验通过' : '备份校验失败'}}</view>
+      <view>物品 {{restorePreview.summary.items}} 个，批次 {{restorePreview.summary.batches}} 个，流水 {{restorePreview.summary.transactions}} 条</view>
+      <view wx:for="{{restorePreview.errors}}" wx:key="*this" class="error-line">{{item}}</view>
+    </view>
+  </view>
+</view>

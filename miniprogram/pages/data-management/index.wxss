@@ -1,0 +1,17 @@
+.page { min-height: 100vh; padding: 32rpx 28rpx 56rpx; box-sizing: border-box; background: #f7f7f2; color: #1f2933; }
+.header { margin-bottom: 26rpx; }
+.title { font-size: 42rpx; font-weight: 700; }
+.subtitle { color: #667085; font-size: 24rpx; margin-top: 8rpx; line-height: 1.5; }
+.section { margin: 24rpx 0 32rpx; }
+.section-title { font-size: 30rpx; font-weight: 700; margin-bottom: 14rpx; }
+.action-row { display: flex; flex-wrap: wrap; gap: 12rpx; margin-bottom: 14rpx; }
+.action-row button { margin: 0; min-width: 132rpx; height: 62rpx; line-height: 62rpx; border-radius: 8rpx; font-size: 24rpx; }
+.success { background: #16834a; color: #fff; }
+.danger { background: #d92d20; color: #fff; }
+.textarea { width: 100%; min-height: 220rpx; padding: 18rpx; box-sizing: border-box; background: #fff; border: 1rpx solid #e4e7ec; border-radius: 8rpx; font-size: 24rpx; line-height: 1.5; color: #1f2933; }
+.output { min-height: 180rpx; color: #475467; }
+.file-name { font-size: 24rpx; color: #475467; margin-bottom: 10rpx; word-break: break-all; }
+.result { background: #fff; border: 1rpx solid #e4e7ec; border-radius: 8rpx; padding: 16rpx; margin-top: 14rpx; color: #344054; font-size: 24rpx; line-height: 1.6; }
+.error-block { background: #fee4e2; color: #b42318; border-radius: 8rpx; padding: 18rpx; margin: 20rpx 0; font-size: 26rpx; }
+.error-line { color: #b42318; }
+.muted { color: #667085; font-size: 26rpx; margin: 16rpx 0; }

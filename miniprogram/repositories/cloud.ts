@@ -86,6 +86,7 @@ export class CloudCategoryRepository implements CategoryRepository {
   create(doc: Category): Promise<Category> { return this.base.create(doc); }
   getById(userId: string, id: string): Promise<Category | null> { return this.base.getById(userId, id); }
   update(userId: string, id: string, patch: Partial<Category>): Promise<Category> { return this.base.update(userId, id, patch); }
+  delete(userId: string, id: string): Promise<void> { return this.base.delete(userId, id); }
   listByUser(userId: string): Promise<Category[]> { return this.base.listByUser(userId); }
 }
 
@@ -105,6 +106,7 @@ export class CloudBatchRepository implements BatchRepository {
   create(doc: Batch): Promise<Batch> { return this.base.create(doc); }
   getById(userId: string, id: string): Promise<Batch | null> { return this.base.getById(userId, id); }
   update(userId: string, id: string, patch: Partial<Batch>): Promise<Batch> { return this.base.update(userId, id, patch); }
+  delete(userId: string, id: string): Promise<void> { return this.base.delete(userId, id); }
   listByUser(userId: string): Promise<Batch[]> { return this.base.listByUser(userId); }
   async listByItem(userId: string, itemId: string): Promise<Batch[]> {
     const result = await this.db.collection(COLLECTIONS.batches).where({ _openid: userId, itemId }).get();
@@ -129,6 +131,7 @@ export class CloudTransactionRepository implements TransactionRepository {
   constructor(private readonly db: CloudDb) { this.base = new CloudCollectionRepository<Transaction>(db, COLLECTIONS.transactions); }
   create(doc: Transaction): Promise<Transaction> { return this.base.create(doc); }
   getById(userId: string, id: string): Promise<Transaction | null> { return this.base.getById(userId, id); }
+  delete(userId: string, id: string): Promise<void> { return this.base.delete(userId, id); }
   async findByOperationId(userId: string, operationId: string): Promise<Transaction | null> {
     return first<Transaction>(this.db.collection(COLLECTIONS.transactions).where({ _openid: userId, operationId }).limit(1).get());
   }
@@ -145,6 +148,7 @@ export class CloudLocationRepository implements LocationRepository {
   create(doc: Location): Promise<Location> { return this.base.create(doc); }
   getById(userId: string, id: string): Promise<Location | null> { return this.base.getById(userId, id); }
   update(userId: string, id: string, patch: Partial<Location>): Promise<Location> { return this.base.update(userId, id, patch); }
+  delete(userId: string, id: string): Promise<void> { return this.base.delete(userId, id); }
   listByUser(userId: string): Promise<Location[]> { return this.base.listByUser(userId); }
 }
 
@@ -154,6 +158,7 @@ export class CloudReminderRepository implements ReminderRepository {
   create(doc: Reminder): Promise<Reminder> { return this.base.create(doc); }
   getById(userId: string, id: string): Promise<Reminder | null> { return this.base.getById(userId, id); }
   update(userId: string, id: string, patch: Partial<Reminder>): Promise<Reminder> { return this.base.update(userId, id, patch); }
+  delete(userId: string, id: string): Promise<void> { return this.base.delete(userId, id); }
   listByUser(userId: string): Promise<Reminder[]> { return this.base.listByUser(userId); }
   async listByItem(userId: string, itemId: string): Promise<Reminder[]> {
     const result = await this.db.collection(COLLECTIONS.reminders).where({ _openid: userId, itemId }).get();
@@ -177,6 +182,7 @@ export class CloudRestockRepository implements RestockRepository {
   constructor(private readonly db: CloudDb) { this.base = new CloudCollectionRepository<RestockItem>(db, COLLECTIONS.restockItems); }
   create(doc: RestockItem): Promise<RestockItem> { return this.base.create(doc); }
   update(userId: string, id: string, patch: Partial<RestockItem>): Promise<RestockItem> { return this.base.update(userId, id, patch); }
+  delete(userId: string, id: string): Promise<void> { return this.base.delete(userId, id); }
   listByUser(userId: string): Promise<RestockItem[]> { return this.base.listByUser(userId); }
   async findNeededByItem(userId: string, itemId: string): Promise<RestockItem | null> {
     return first<RestockItem>(this.db.collection(COLLECTIONS.restockItems).where({ _openid: userId, itemId, status: 'NEEDED' }).limit(1).get());
@@ -196,6 +202,10 @@ export class CloudSettingsRepository implements SettingsRepository {
     }
     await this.db.collection(COLLECTIONS.settings).where({ _id: existing._id, _openid: doc._openid }).update({ data: clone(doc) });
     return (await this.getByUser(doc._openid)) ?? clone(doc);
+  }
+  async deleteForUser(userId: string): Promise<void> {
+    const existing = await this.getByUser(userId);
+    if (existing) await this.db.collection(COLLECTIONS.settings).where({ _id: existing._id, _openid: userId }).remove();
   }
 }
 

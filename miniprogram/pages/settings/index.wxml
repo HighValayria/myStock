@@ -1,1 +1,17 @@
-<view class="placeholder"><view class="title">设置</view><view class="text">分类、位置、数据管理等设置将在后续阶段继续补齐。</view></view>
+<view class="page">
+  <view class="header">
+    <view class="eyebrow">个人库存账本</view>
+    <view class="title">设置</view>
+  </view>
+
+  <view class="section-title">数据管理</view>
+  <view class="list">
+    <view class="row" bindtap="openDataManagement">
+      <view>
+        <view class="row-title">Excel / JSON 数据管理</view>
+        <view class="row-meta">导入、导出、备份与恢复</view>
+      </view>
+      <view class="chevron">›</view>
+    </view>
+  </view>
+</view>

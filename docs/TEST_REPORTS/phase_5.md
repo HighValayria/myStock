@@ -18,7 +18,7 @@ Phase 5 implements the V0.1 Analytics page only. It does not start Phase 6 impor
 - Expiry distribution counts positive Batches, not Items or quantity sums.
 - Stock trend uses positive SKU count.
 - ADD / CONSUME trend counts unique operations, deduplicating multi-batch consume by `operationId`.
-- Inventory value is deliberately unavailable because `Batch.purchasePrice` semantics are not frozen.
+- Inventory value was unavailable during initial Phase 5 acceptance. Phase 6 later froze `Batch.purchasePrice` as unit purchase price and enabled value calculation.
 
 ## Automated Verification
 
@@ -44,7 +44,7 @@ Phase 5 automated coverage:
 - T-P5-A06 empty analysis has stable zero values and no NaN percent.
 - T-P5-A07 no-expiry batches are grouped separately.
 - T-P5-A08 single category share renders as 100 percent.
-- T-P5-A09 inventory value remains blocked when purchasePrice semantics are undefined.
+- T-P5-A09 inventory value uses purchasePrice as unit price after Phase 6 rule freeze.
 - T-P5-A10 summary separates low stock, zero stock, and restock counts.
 
 ## Manual Verification
@@ -58,7 +58,7 @@ Passed:
 
 ## Blocked / Deferred
 
-- Inventory value total is BLOCKED by Q8 in `OPEN_QUESTIONS.md`: `Batch.purchasePrice` does not define whether it is unit price, batch total, discounted paid amount, or another price basis.
+- Inventory value is no longer blocked after Phase 6: `Batch.purchasePrice` means unit purchase price.
 - TC-P2-009 Undo remains blocked by product definition and is unrelated to Phase 5.
 - Two-account `_openid` isolation remains deferred until a second authorized WeChat developer account is available.
 
@@ -71,4 +71,4 @@ Passed:
 
 ## Next Step
 
-Phase 5 is accepted. Do not start Phase 6 until the user explicitly requests it.
+Phase 5 is accepted. Phase 6 has since been completed and accepted; see `docs/TEST_REPORTS/phase_6.md`.

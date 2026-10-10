@@ -312,7 +312,7 @@ Not handled yet:
 
 ## Phase 5: Analytics Page
 
-Status: Accepted for V0.1 Analytics page, StatisticsService aggregation, `inventoryRead.getAnalysisOverview`, Phase 5 automated statistics coverage, and manual UI acceptance TC-P5-001 through TC-P5-010. Inventory value is intentionally shown as unavailable until `Batch.purchasePrice` semantics are frozen.
+Status: Accepted for V0.1 Analytics page, StatisticsService aggregation, `inventoryRead.getAnalysisOverview`, Phase 5 automated statistics coverage, and manual UI acceptance TC-P5-001 through TC-P5-010. `Batch.purchasePrice` is now frozen as unit purchase price, so inventory value is calculated where price data exists.
 
 Goal:
 
@@ -339,7 +339,7 @@ Core functions:
 - Expiry distribution by positive Batch count.
 - Stock trend by positive SKU count.
 - Transaction trend by ADD / CONSUME operation count.
-- Inventory value availability summary only; no value total until purchase price semantics are defined.
+- Inventory value summary calculated from positive Batch quantity × unit purchase price where price data exists.
 
 UI:
 
@@ -354,7 +354,7 @@ Tests:
 - Category share counts SKU/items, not incompatible unit quantities.
 - Expiry distribution counts positive Batches only.
 - Trend uses positive SKU counts and Transaction operation counts, not global mixed quantities.
-- Inventory value remains blocked when purchase price semantics are undefined.
+- Inventory value uses `purchasePrice` as unit price.
 
 Acceptance:
 
@@ -366,6 +366,8 @@ Not handled yet:
 
 ## Phase 6: Excel / JSON Data Management
 
+Status: Accepted for Settings Data Management UI, `dataManage` cloud function, `ImportExportService`, Phase 6 automated tests T-P6-A01 through T-P6-A18, and manual acceptance TC-P6-001 through TC-P6-015.
+
 Goal:
 
 - Provide user-controlled export, standard Excel import, and full JSON backup/restore.
@@ -374,22 +376,25 @@ Files:
 
 - `miniprogram/pages/data-management/*`
 - `miniprogram/services/import-export-service.ts`
-- `cloudfunctions/importBackup/*`
-- `tests/services/import-export-service.test.ts`
-- `tests/acceptance/scenario-h-to-i.md`
+- `miniprogram/services/phase2-ui-service.ts`
+- `cloudfunctions/dataManage/*`
+- `tests/run-tests.ts`
+- `docs/TEST_REPORTS/phase_6.md`
 
 Data changes:
 
 - Full backup covers categories, items, batches, transactions, locations, reminders, restockItems, settings.
 - Restore validates schemaVersion and references before writing.
+- Restore rebinds backup rows to the current WeChat OPENID and never trusts backup `_openid`.
 
 Core functions:
 
-- `exportBackupJson`
-- `validateBackupJson`
-- `restoreBackupJson`
-- `exportExcel`
-- `importStandardExcel`
+- `previewExcelImport`
+- `commitExcelImport`
+- `exportExcelText`
+- `exportBackup`
+- `previewRestore`
+- `restoreBackup`
 
 UI:
 
@@ -397,6 +402,7 @@ UI:
 - Import preview with data summary.
 - Confirmation before overwrite or merge.
 - Export result handling.
+- File selection with paste/copy fallback for WeChat environments.
 
 Tests:
 
@@ -404,11 +410,14 @@ Tests:
 - Restore rejects wrong schemaVersion or missing required fields.
 - Restore can recover data under same user identity.
 - Standard Excel import creates auditable transactions.
+- Duplicate import operation IDs are idempotent per row.
+- JSON restore rejects bad references before writing.
 
 Acceptance:
 
 - Scenario H same WeChat identity reloads cloud data on another device.
 - Scenario I JSON backup restores all listed entities.
+- Manual acceptance TC-P6-001 through TC-P6-015 passed.
 
 Not handled yet:
 

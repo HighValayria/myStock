@@ -2,7 +2,9 @@
 
 ## Current Phase
 
-Phase 5 implementation is accepted for the V0.1 Analytics page. Automated verification passes, and WeChat DevTools manual UI acceptance TC-P5-001 through TC-P5-010 passed on 2026-10-10 after deploying the updated `inventoryRead` cloud function.
+Phase 6 implementation is accepted for V0.1 Excel / JSON Data Management. Automated verification passes, and user manual acceptance passed on 2026-10-10 after validating Excel import/export, JSON backup/restore, schema validation, and restore safety.
+
+Phase 5 implementation remains accepted for the V0.1 Analytics page. `Batch.purchasePrice` semantics are now frozen as unit purchase price, so inventory value can be calculated as positive Batch quantity × unit purchase price where price is present.
 
 Phase 4 implementation remains code-complete for Reminder System and Restock. WeChat DevTools manual UI acceptance for TC-P4-001 through TC-P4-020 is pending after deploying the updated `inventoryRead` and `inventoryWrite` cloud functions.
 
@@ -36,10 +38,13 @@ Phase 2 remains code-complete for the Add / Consume / Edit loop. TC-P2-009 Undo 
 - Item detail now has a manual Join Restock entry. Restock “record purchase” reuses the Phase 2 Add Stock page with current Item context.
 - Home important reminder panel links to the real reminder center.
 - Phase 5 analysis tab replaces the Analysis placeholder with real V0.1 statistics.
-- `StatisticsService` computes category SKU distribution, expiry Batch distribution, positive-SKU stock trend, ADD / CONSUME operation trend, summary cards, and inventory value availability.
+- `StatisticsService` computes category SKU distribution, expiry Batch distribution, positive-SKU stock trend, ADD / CONSUME operation trend, summary cards, and inventory value from priced batches.
 - `inventoryRead.getAnalysisOverview` aggregates Phase 5 read models server-side using current OPENID.
-- Inventory value total is intentionally unavailable because `Batch.purchasePrice` semantics are not frozen.
-- Lightweight placeholder remains for Settings only; no Phase 6 functionality implemented.
+- `Batch.purchasePrice` is frozen as unit purchase price. UI labels use “单位购买价格”.
+- Phase 6 Data Management replaces the Settings placeholder entry with Excel / JSON data actions.
+- `dataManage` cloud function supports Excel-compatible TSV/CSV preview, commit, export, JSON backup export, restore preview, and restore.
+- Excel import uses standard headers, deterministic aliases, `name + specification + brand + unit` item matching, existing Batch merge rules, ADD Transactions, and row-level idempotency via `importOperationId:row:<rowNumber>`.
+- JSON backup contains categories, items, batches, transactions, locations, reminders, restockItems, and settings. Restore validates references first, then fully replaces current-user data and rebinds `_openid` to the current WeChat identity.
 
 ## Automated Verification
 
@@ -52,17 +57,19 @@ npm test
 Latest result:
 
 ```text
-44 tests passed
+62 tests passed
 ```
 
-Coverage includes Phase 1/2/3 regression, Phase 4 Reminder and Restock lifecycle tests T-P4-A01 through T-P4-A16, and Phase 5 Analytics tests T-P5-A01 through T-P5-A10.
+Coverage includes Phase 1/2/3 regression, Phase 4 Reminder and Restock lifecycle tests T-P4-A01 through T-P4-A16, Phase 5 Analytics tests T-P5-A01 through T-P5-A10, and Phase 6 Excel / JSON tests T-P6-A01 through T-P6-A18.
 
 Additional static verification:
 
 ```bash
 node --check cloudfunctions/inventoryRead/index.js
 node --check cloudfunctions/inventoryWrite/index.js
+node --check cloudfunctions/dataManage/index.js
 node --check miniprogram/pages/analysis/index.js
+node --check miniprogram/pages/data-management/index.js
 node --check miniprogram/pages/reminders/index.js
 node --check miniprogram/pages/item-detail/index.js
 node --check miniprogram/services/phase2-ui-service.js
@@ -93,6 +100,10 @@ Passed Phase 5 manual UI acceptance in WeChat DevTools:
 
 - TC-P5-001 through TC-P5-010.
 
+Passed Phase 6 manual UI acceptance:
+
+- TC-P6-001 through TC-P6-015.
+
 Pending Phase 3 manual UI acceptance in WeChat DevTools:
 
 - TC-P3-001 through TC-P3-018.
@@ -114,8 +125,7 @@ Deferred manual verification:
 
 - TC-P2-009 Undo: blocked because undo scope is not frozen.
 - Two-account user isolation: no second authorized WeChat developer account is currently available.
-- Phase 5 inventory value total: blocked because purchase price semantics are not frozen.
 
-## Phase 5 Readiness
+## Phase 6 Readiness
 
-Phase 5 is accepted and can be used as the baseline for the next phase. Phase 3/4 manual acceptance remains pending in this document unless separately confirmed. Phase 6 may start when the user explicitly requests it. TC-P2-009 remains blocked by product definition and does not count as a code failure.
+Phase 6 is accepted and can be used as the baseline for the next phase. Phase 3/4 manual acceptance remains pending in this document unless separately confirmed. Do not start Phase 7 unless the user explicitly requests it. TC-P2-009 remains blocked by product definition and does not count as a code failure.

@@ -70,6 +70,7 @@ export class MemoryCategoryRepository implements CategoryRepository {
   create(doc: Category): Promise<Category> { return this.collection.create(doc); }
   getById(userId: string, id: string): Promise<Category | null> { return this.collection.getById(userId, id); }
   update(userId: string, id: string, patch: Partial<Category>): Promise<Category> { return this.collection.update(userId, id, patch); }
+  delete(userId: string, id: string): Promise<void> { return this.collection.delete(userId, id); }
   listByUser(userId: string): Promise<Category[]> { return this.collection.listByUser(userId); }
 }
 
@@ -87,6 +88,7 @@ export class MemoryBatchRepository implements BatchRepository {
   create(doc: Batch): Promise<Batch> { return this.collection.create(doc); }
   getById(userId: string, id: string): Promise<Batch | null> { return this.collection.getById(userId, id); }
   update(userId: string, id: string, patch: Partial<Batch>): Promise<Batch> { return this.collection.update(userId, id, patch); }
+  delete(userId: string, id: string): Promise<void> { return this.collection.delete(userId, id); }
   listByUser(userId: string): Promise<Batch[]> { return this.collection.listByUser(userId); }
 
   async listByItem(userId: string, itemId: string): Promise<Batch[]> {
@@ -111,6 +113,7 @@ export class MemoryTransactionRepository implements TransactionRepository {
   private readonly collection = new MemoryCollection<Transaction>();
   create(doc: Transaction): Promise<Transaction> { return this.collection.create(doc); }
   getById(userId: string, id: string): Promise<Transaction | null> { return this.collection.getById(userId, id); }
+  delete(userId: string, id: string): Promise<void> { return this.collection.delete(userId, id); }
   listByUser(userId: string): Promise<Transaction[]> { return this.collection.listByUser(userId); }
 
   async findByOperationId(userId: string, operationId: string): Promise<Transaction | null> {
@@ -130,6 +133,7 @@ export class MemoryLocationRepository implements LocationRepository {
   create(doc: Location): Promise<Location> { return this.collection.create(doc); }
   getById(userId: string, id: string): Promise<Location | null> { return this.collection.getById(userId, id); }
   update(userId: string, id: string, patch: Partial<Location>): Promise<Location> { return this.collection.update(userId, id, patch); }
+  delete(userId: string, id: string): Promise<void> { return this.collection.delete(userId, id); }
   listByUser(userId: string): Promise<Location[]> { return this.collection.listByUser(userId); }
 }
 
@@ -138,6 +142,7 @@ export class MemoryReminderRepository implements ReminderRepository {
   create(doc: Reminder): Promise<Reminder> { return this.collection.create(doc); }
   getById(userId: string, id: string): Promise<Reminder | null> { return this.collection.getById(userId, id); }
   update(userId: string, id: string, patch: Partial<Reminder>): Promise<Reminder> { return this.collection.update(userId, id, patch); }
+  delete(userId: string, id: string): Promise<void> { return this.collection.delete(userId, id); }
   listByUser(userId: string): Promise<Reminder[]> { return this.collection.listByUser(userId); }
 
   async listByItem(userId: string, itemId: string): Promise<Reminder[]> {
@@ -161,6 +166,7 @@ export class MemoryRestockRepository implements RestockRepository {
   private readonly collection = new MemoryCollection<RestockItem>();
   create(doc: RestockItem): Promise<RestockItem> { return this.collection.create(doc); }
   update(userId: string, id: string, patch: Partial<RestockItem>): Promise<RestockItem> { return this.collection.update(userId, id, patch); }
+  delete(userId: string, id: string): Promise<void> { return this.collection.delete(userId, id); }
   listByUser(userId: string): Promise<RestockItem[]> { return this.collection.listByUser(userId); }
 
   async findNeededByItem(userId: string, itemId: string): Promise<RestockItem | null> {
@@ -179,6 +185,11 @@ export class MemorySettingsRepository implements SettingsRepository {
     const existing = await this.getByUser(doc._openid);
     if (!existing) return this.collection.create(doc);
     return this.collection.update(doc._openid, existing._id, doc);
+  }
+
+  async deleteForUser(userId: string): Promise<void> {
+    const existing = await this.getByUser(userId);
+    if (existing) await this.collection.delete(userId, existing._id);
   }
 }
 

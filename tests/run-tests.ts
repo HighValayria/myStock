@@ -1,5 +1,5 @@
 import { createMemoryRepositories } from '../miniprogram/repositories';
-import { InventoryService, ReminderService, StatisticsService } from '../miniprogram/services';
+import { ImportExportService, InventoryService, ReminderService, StatisticsService } from '../miniprogram/services';
 import type { InventoryMutationClient } from '../miniprogram/services';
 import { InventoryError } from '../miniprogram/utils/errors';
 import { resetIdSequenceForTests } from '../miniprogram/utils/id';
@@ -163,6 +163,17 @@ async function seedRestock(repos: MemoryRepos, id: string, itemId: string, overr
 
 function statistics(repos: MemoryRepos): StatisticsService {
   return new StatisticsService(repos, { userId: USER_ID, now: () => TODAY });
+}
+
+function importExport(repos: MemoryRepos): ImportExportService {
+  return new ImportExportService(repos, { userId: USER_ID, now: () => TODAY });
+}
+
+function excelText(rows: string[][]): string {
+  return [
+    '物品名称\t类别\t品牌\t规格\t数量\t单位\t存放位置\t购买日期\t生产日期\t保质期数值\t保质期单位\t到期日期\t单位购买价格\t购买渠道\t低库存阈值\t临期阈值\t备注',
+    ...rows.map((row) => row.join('\t')),
+  ].join('\n');
 }
 
 function sumTrend(points: Array<{ addOperationCount: number; consumeOperationCount: number }>, key: 'addOperationCount' | 'consumeOperationCount'): number {
@@ -645,14 +656,14 @@ const tests: Array<[string, () => Promise<void>]> = [
     assertEqual(overview.categorySkuDistribution[0].percent, 100, 'single category percent');
   }],
 
-  ['T-P5-A09 inventory value remains blocked when purchasePrice semantics are undefined', async () => {
+  ['T-P5-A09 inventory value uses purchasePrice as unit price', async () => {
     const { repos } = createContext();
     await seedItem(repos, 'item_priced');
     await seedBatch(repos, 'batch_priced', 'item_priced', { quantity: 2, purchasePrice: 12.5 });
     const overview = await statistics(repos).getAnalysisOverview();
-    assertEqual(overview.valueSummary.status, 'BLOCKED_PRICE_SEMANTICS', 'value summary status');
+    assertEqual(overview.valueSummary.status, 'CALCULATED', 'value summary status');
+    assertEqual(overview.valueSummary.totalValue, 25, 'unit price value');
     assertEqual(overview.valueSummary.pricedBatchCount, 1, 'priced batch coverage count');
-    assert(!('totalValue' in overview.valueSummary), 'value summary must not expose calculated total value');
   }],
 
   ['T-P5-A10 summary separates low stock, zero stock, and restock counts', async () => {
@@ -666,6 +677,162 @@ const tests: Array<[string, () => Promise<void>]> = [
     assertEqual(overview.summary.lowStockItemCount, 1, 'low stock item count');
     assertEqual(overview.summary.zeroStockItemCount, 1, 'zero stock item count');
     assertEqual(overview.summary.restockNeededCount, 1, 'restock needed count');
+  }],
+
+  ['T-P6-A01 standard Excel valid row parses', async () => {
+    const { repos } = createContext();
+    const preview = await importExport(repos).previewExcelImport({ text: excelText([['牛奶', '食品', '', '', '6', '盒', '冷藏室', '', '', '', '', '', '', '', '', '', '']]) });
+    assertEqual(preview.validRows, 1, 'valid import rows');
+    assertEqual(preview.rows[0].quantity, 6, 'parsed quantity');
+  }],
+
+  ['T-P6-A02 missing item name is invalid', async () => {
+    const { repos } = createContext();
+    const preview = await importExport(repos).previewExcelImport({ text: excelText([['', '食品', '', '', '6', '盒', '冷藏室', '', '', '', '', '', '', '', '', '', '']]) });
+    assertEqual(preview.errorRows, 1, 'missing name error count');
+  }],
+
+  ['T-P6-A03 missing unit defaults to 个', async () => {
+    const { repos } = createContext();
+    const preview = await importExport(repos).previewExcelImport({ text: excelText([['牛奶', '食品', '', '', '6', '', '冷藏室', '', '', '', '', '', '', '', '', '', '']]) });
+    assertEqual(preview.rows[0].item?.unit, '个', 'default unit');
+  }],
+
+  ['T-P6-A04 invalid quantities fail', async () => {
+    const { repos } = createContext();
+    const preview = await importExport(repos).previewExcelImport({
+      text: excelText([
+        ['零', '食品', '', '', '0', '盒', '冷藏室', '', '', '', '', '', '', '', '', '', ''],
+        ['负数', '食品', '', '', '-1', '盒', '冷藏室', '', '', '', '', '', '', '', '', '', ''],
+        ['文本', '食品', '', '', 'abc', '盒', '冷藏室', '', '', '', '', '', '', '', '', '', ''],
+      ]),
+    });
+    assertEqual(preview.errorRows, 3, 'invalid quantity rows');
+  }],
+
+  ['T-P6-A05 date parsing keeps string dates stable', async () => {
+    const { repos } = createContext();
+    const preview = await importExport(repos).previewExcelImport({ text: excelText([['牛奶', '食品', '', '', '6', '盒', '冷藏室', '2026-10-10', '', '', '', '2026-10-20', '', '', '', '', '']]) });
+    assertEqual(preview.rows[0].purchaseDate, '2026-10-10', 'purchase date');
+    assertEqual(preview.rows[0].expiryDate, '2026-10-20', 'expiry date');
+  }],
+
+  ['T-P6-A06 conflicting production shelf life and expiry date is invalid', async () => {
+    const { repos } = createContext();
+    const preview = await importExport(repos).previewExcelImport({ text: excelText([['牛奶', '食品', '', '', '6', '盒', '冷藏室', '', '2026-10-01', '7', 'DAY', '2026-10-20', '', '', '', '', '']]) });
+    assertEqual(preview.errorRows, 1, 'date conflict row');
+  }],
+
+  ['T-P6-A07 existing category is reused', async () => {
+    const { repos } = createContext();
+    await seedCategory(repos, 'cat_food', '食品');
+    const preview = await importExport(repos).previewExcelImport({ text: excelText([['牛奶', '食品', '', '', '6', '盒', '冷藏室', '', '', '', '', '', '', '', '', '', '']]) });
+    assertEqual(preview.creates.categoryNames.includes('食品'), false, 'existing category not created');
+  }],
+
+  ['T-P6-A08 new category is surfaced and created', async () => {
+    const { repos } = createContext();
+    const service = importExport(repos);
+    const preview = await service.previewExcelImport({ importOperationId: 'import-cat', text: excelText([['猫粮', '宠物用品', '', '', '2', '袋', '柜子', '', '', '', '', '', '', '', '', '', '']]) });
+    assert(preview.creates.categoryNames.includes('宠物用品'), 'new category surfaced');
+    await service.commitExcelImport(preview);
+    assert((await repos.categories.listByUser(USER_ID)).some((category) => category.name === '宠物用品'), 'new category created');
+  }],
+
+  ['T-P6-A09 item matching does not merge same name with different specification', async () => {
+    const { repos } = createContext();
+    await seedCategory(repos, 'cat_food', '食品');
+    await seedItem(repos, 'item_coke_330', { name: '可乐', specification: '330ml', unit: '瓶' });
+    const preview = await importExport(repos).previewExcelImport({ text: excelText([['可乐', '食品', '', '2L', '1', '瓶', '冷藏室', '', '', '', '', '', '', '', '', '', '']]) });
+    assertEqual(preview.creates.itemCount, 1, 'same name different spec creates new item');
+  }],
+
+  ['T-P6-A10 batch merge reuses addStock merge rule', async () => {
+    const { repos } = createContext();
+    const service = importExport(repos);
+    const first = await service.previewExcelImport({ importOperationId: 'import-merge-1', text: excelText([['牛奶', '食品', '', '', '2', '盒', '冷藏室', '2026-10-01', '', '', '', '2026-10-20', '', '', '', '', '']]) });
+    await service.commitExcelImport(first);
+    const second = await service.previewExcelImport({ importOperationId: 'import-merge-2', text: excelText([['牛奶', '食品', '', '', '3', '盒', '冷藏室', '2026-10-01', '', '', '', '2026-10-20', '', '', '', '', '']]) });
+    const result = await service.commitExcelImport(second);
+    const batches = await repos.batches.listByUser(USER_ID);
+    assertEqual(batches.length, 1, 'same batch key merged');
+    assertEqual(batches[0].quantity, 5, 'merged quantity');
+    assertEqual(result.mergedBatches, 1, 'merged batch report');
+  }],
+
+  ['T-P6-A11 Excel import creates ADD transaction', async () => {
+    const { repos } = createContext();
+    const service = importExport(repos);
+    const preview = await service.previewExcelImport({ importOperationId: 'import-add-tx', text: excelText([['牛奶', '食品', '', '', '2', '盒', '冷藏室', '', '', '', '', '', '', '', '', '', '']]) });
+    await service.commitExcelImport(preview);
+    const txs = await repos.transactions.listByUser(USER_ID);
+    assert(txs.some((tx) => tx.type === 'ADD' && tx.note?.includes('Excel导入')), 'ADD import transaction');
+  }],
+
+  ['T-P6-A12 duplicate importOperationId is idempotent', async () => {
+    const { repos } = createContext();
+    const service = importExport(repos);
+    const preview = await service.previewExcelImport({ importOperationId: 'import-idempotent', text: excelText([['牛奶', '食品', '', '', '2', '盒', '冷藏室', '', '', '', '', '', '', '', '', '', '']]) });
+    await service.commitExcelImport(preview);
+    await service.commitExcelImport(preview);
+    const batches = await repos.batches.listByUser(USER_ID);
+    const txs = await repos.transactions.listByUser(USER_ID);
+    assertEqual(batches[0].quantity, 2, 'idempotent quantity');
+    assertEqual(txs.length, 1, 'idempotent transaction count');
+  }],
+
+  ['T-P6-A13 JSON export includes core collections', async () => {
+    const { repos } = createContext();
+    await seedCategory(repos, 'cat_food', '食品');
+    await seedItem(repos, 'item_milk');
+    await seedBatch(repos, 'batch_milk', 'item_milk');
+    await seedTransaction(repos, 'tx_milk', 'item_milk', { batchId: 'batch_milk' });
+    const backup = await importExport(repos).exportBackup();
+    assertEqual(backup.schemaVersion, 1, 'schema version');
+    assertEqual(backup.items.length, 1, 'backup items');
+    assertEqual(backup.batches.length, 1, 'backup batches');
+    assertEqual(backup.transactions.length, 1, 'backup transactions');
+  }],
+
+  ['T-P6-A14 JSON restore replaces current data', async () => {
+    const { repos } = createContext();
+    await seedCategory(repos, 'cat_food', '食品');
+    await seedItem(repos, 'item_a', { name: 'A' });
+    const service = importExport(repos);
+    const backup = await service.exportBackup();
+    await seedItem(repos, 'item_b', { name: 'B' });
+    await service.restoreBackup(backup);
+    const items = await repos.items.listByUser(USER_ID);
+    assert(items.some((item) => item._id === 'item_a'), 'restored item A');
+    assert(!items.some((item) => item._id === 'item_b'), 'current item B replaced');
+  }],
+
+  ['T-P6-A15 newer backup version is rejected', async () => {
+    const { repos } = createContext();
+    const backup = await importExport(repos).exportBackup();
+    const validation = importExport(repos).validateBackup({ ...backup, schemaVersion: 999 });
+    assert(!validation.valid, 'new version invalid');
+  }],
+
+  ['T-P6-A16 damaged JSON is rejected before restore', async () => {
+    const { repos } = createContext();
+    const validation = importExport(repos).validateBackup({ schemaVersion: 1, items: 'bad' });
+    assert(!validation.valid, 'damaged backup invalid');
+  }],
+
+  ['T-P6-A17 backup reference integrity is checked', async () => {
+    const { repos } = createContext();
+    const backup = await importExport(repos).exportBackup();
+    const validation = importExport(repos).validateBackup({ ...backup, batches: [{ _id: 'batch_bad', itemId: 'missing', locationId: '', quantity: 1 }] });
+    assert(!validation.valid, 'bad reference invalid');
+  }],
+
+  ['T-P6-A18 failed restore validation leaves current data unchanged', async () => {
+    const { repos } = createContext();
+    await seedItem(repos, 'item_current', { name: 'Current' });
+    const backup = await importExport(repos).exportBackup();
+    await assertRejects(() => importExport(repos).restoreBackup({ ...backup, schemaVersion: 999 }), 'VALIDATION_ERROR', 'restore should reject bad version');
+    assertEqual((await repos.items.listByUser(USER_ID)).length, 1, 'current data unchanged');
   }],
 ];
 

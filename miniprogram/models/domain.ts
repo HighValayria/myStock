@@ -41,6 +41,7 @@ export interface Batch extends BaseDoc {
   shelfLifeValue?: number | null;
   shelfLifeUnit?: ShelfLifeUnit | null;
   expiryDate: string;
+  /** Unit purchase price. Total value is quantity * purchasePrice. */
   purchasePrice?: number | null;
   purchaseChannel?: string | null;
   openedDate?: string | null;
@@ -114,6 +115,7 @@ export interface AddStockInput {
   shelfLifeValue?: number | null;
   shelfLifeUnit?: ShelfLifeUnit | null;
   expiryDate: string;
+  /** Unit purchase price. Total value is quantity * purchasePrice. */
   purchasePrice?: number | null;
   purchaseChannel?: string | null;
   note?: string;

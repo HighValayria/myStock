@@ -607,10 +607,12 @@ function buildAnalysisTrend(items, batches, transactions, dates) {
 function buildAnalysisValueSummary(batches) {
   const positiveBatches = batches.filter((batch) => Number(batch.quantity || 0) > 0);
   const pricedBatchCount = positiveBatches.filter((batch) => batch.purchasePrice != null).length;
+  const totalValue = positiveBatches.reduce((sum, batch) => sum + Number(batch.quantity || 0) * Number(batch.purchasePrice || 0), 0);
   return {
-    status: "BLOCKED_PRICE_SEMANTICS",
-    label: "暂不计算",
-    message: "purchasePrice 的含义尚未冻结，不能把它当作单价或批次总价计算库存价值。",
+    status: "CALCULATED",
+    label: `¥${Math.round(totalValue * 100) / 100}`,
+    message: "按有价格记录批次的 quantity × purchasePrice 估算；purchasePrice 表示单位购买价格。",
+    totalValue: Math.round(totalValue * 100) / 100,
     pricedBatchCount,
     positiveBatchCount: positiveBatches.length,
     coveragePercent: safePercent(pricedBatchCount, positiveBatches.length),

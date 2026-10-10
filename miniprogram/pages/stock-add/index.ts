@@ -426,7 +426,7 @@ Page({
       });
       const lowStockThreshold = parseOptionalNumber(form.lowStockThreshold, '低库存阈值', { min: 0 });
       const expiryWarningDays = parseOptionalNumber(form.expiryWarningDays, '临期阈值', { integer: true, min: 0 });
-      const purchasePrice = parseOptionalNumber(form.purchasePrice, '购买价格', { min: 0 });
+      const purchasePrice = parseOptionalNumber(form.purchasePrice, '单位购买价格', { min: 0 });
       const locationId = form.locationId || firstOrEmpty(this.data.locations) || 'default_location';
       const categoryId = form.categoryId || firstOrEmpty(this.data.categories) || 'default_category';
       const unit = (form.unit || DEFAULT_UNIT).trim() || DEFAULT_UNIT;

@@ -19,3 +19,4 @@ __exportStar(require("./inventory-mutation-client"), exports);
 __exportStar(require("./reminder-service"), exports);
 __exportStar(require("./settings-service"), exports);
 __exportStar(require("./statistics-service"), exports);
+__exportStar(require("./import-export-service"), exports);

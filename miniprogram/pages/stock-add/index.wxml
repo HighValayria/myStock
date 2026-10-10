@@ -101,7 +101,7 @@
         </picker>
       </view>
       <view class="hint">填写后将优先使用该到期日期。</view>
-      <input class="input" type="digit" placeholder="购买价格（可选）" data-field="purchasePrice" value="{{form.purchasePrice}}" bindinput="onFieldInput" />
+      <input class="input" type="digit" placeholder="单位购买价格（可选）" data-field="purchasePrice" value="{{form.purchasePrice}}" bindinput="onFieldInput" />
       <input class="input" placeholder="购买渠道（可选）" data-field="purchaseChannel" value="{{form.purchaseChannel}}" bindinput="onFieldInput" />
       <input wx:if="{{isNewMode}}" class="input" type="digit" placeholder="低库存阈值（高级设置）" data-field="lowStockThreshold" value="{{form.lowStockThreshold}}" bindinput="onFieldInput" />
       <input wx:if="{{isNewMode}}" class="input" type="number" placeholder="临期阈值天数（高级设置）" data-field="expiryWarningDays" value="{{form.expiryWarningDays}}" bindinput="onFieldInput" />

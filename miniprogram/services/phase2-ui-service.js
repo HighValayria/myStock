@@ -13,6 +13,12 @@ exports.getHomeDashboard = getHomeDashboard;
 exports.getItemDetail = getItemDetail;
 exports.listReminderCenter = listReminderCenter;
 exports.getAnalysisOverview = getAnalysisOverview;
+exports.previewExcelImport = previewExcelImport;
+exports.commitExcelImport = commitExcelImport;
+exports.exportExcelText = exportExcelText;
+exports.exportBackup = exportBackup;
+exports.previewRestoreBackup = previewRestoreBackup;
+exports.restoreBackup = restoreBackup;
 exports.addStock = addStock;
 exports.consumeStock = consumeStock;
 exports.markReminderRead = markReminderRead;
@@ -155,6 +161,24 @@ async function getAnalysisOverview(options = {}) {
     return callCloudFunction('inventoryRead', 'getAnalysisOverview', {
         range: options.range || '30d',
     });
+}
+async function previewExcelImport(text, importOperationId) {
+    return callCloudFunction('dataManage', 'previewExcelImport', { text, importOperationId });
+}
+async function commitExcelImport(text, importOperationId) {
+    return callCloudFunction('dataManage', 'commitExcelImport', { text, importOperationId });
+}
+async function exportExcelText() {
+    return callCloudFunction('dataManage', 'exportExcelText');
+}
+async function exportBackup() {
+    return callCloudFunction('dataManage', 'exportBackup');
+}
+async function previewRestoreBackup(backup) {
+    return callCloudFunction('dataManage', 'previewRestore', { backup });
+}
+async function restoreBackup(backup) {
+    return callCloudFunction('dataManage', 'restoreBackup', { backup });
 }
 async function addStock(input) {
     const context = await getPhase2Context();

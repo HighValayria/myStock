@@ -127,7 +127,7 @@
     </picker>
     <view class="hint">直接填写到期日，或填写生产日期和保质期。</view>
 
-    <view class="field-label">购买价格</view>
+    <view class="field-label">单位购买价格</view>
     <input class="input" type="digit" placeholder="可选" data-field="purchasePrice" value="{{batchForm.purchasePrice}}" bindinput="onBatchFieldInput" />
     <view class="field-label">备注</view>
     <textarea class="textarea" placeholder="可选" data-field="note" value="{{batchForm.note}}" bindinput="onBatchFieldInput" />

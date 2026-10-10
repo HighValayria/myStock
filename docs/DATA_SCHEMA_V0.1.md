@@ -113,6 +113,7 @@ export interface Batch extends BaseDoc {
   shelfLifeValue?: number | null;
   shelfLifeUnit?: ShelfLifeUnit | null;
   expiryDate: string;
+  /** Unit purchase price. Total value is quantity * purchasePrice. */
   purchasePrice?: number | null;
   purchaseChannel?: string | null;
   openedDate?: string | null;
@@ -124,6 +125,8 @@ export interface Batch extends BaseDoc {
 Required fields: `_id`, `_openid`, `schemaVersion`, `itemId`, `quantity`, `locationId`, `expiryDate`, `createdAt`, `updatedAt`.
 
 Optional fields: `purchaseDate`, `productionDate`, `shelfLifeValue`, `shelfLifeUnit`, `purchasePrice`, `purchaseChannel`, `openedDate`, `openedExpiryDate`, `note`.
+
+`purchasePrice` means unit purchase price. It is not a whole-batch total. Inventory value can be estimated as positive `quantity * purchasePrice` for batches where price exists.
 
 Indexes:
 
@@ -330,6 +333,7 @@ export interface AddStockInput {
   shelfLifeValue?: number | null;
   shelfLifeUnit?: ShelfLifeUnit | null;
   expiryDate: string;
+  /** Unit purchase price. Total value is quantity * purchasePrice. */
   purchasePrice?: number | null;
   purchaseChannel?: string | null;
   note?: string;

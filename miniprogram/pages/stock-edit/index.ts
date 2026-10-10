@@ -411,7 +411,7 @@ Page({
         shelfLifeValue,
         shelfLifeUnit: shelfLifeValue == null ? null : form.shelfLifeUnit,
         expiryDate,
-        purchasePrice: parseOptionalNumber(form.purchasePrice, '购买价格', { min: 0 }),
+        purchasePrice: parseOptionalNumber(form.purchasePrice, '单位购买价格', { min: 0 }),
         note: form.note.trim(),
       });
       await this.refreshDetail();

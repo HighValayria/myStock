@@ -9,6 +9,7 @@
     "pages/analysis/index",
     "pages/reminders/index",
     "pages/settings/index",
+    "pages/data-management/index",
     "pages/dev-cloud-check/index",
     "pages/logs/logs"
   ],
