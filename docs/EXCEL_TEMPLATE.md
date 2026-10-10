@@ -1,6 +1,6 @@
 # Excel Template - V0.1
 
-Phase 6 uses a fixed standard template. Excel-compatible TSV/CSV text is accepted by the app.
+Phase 6 uses a fixed standard template. The app accepts real `.xlsx` files and Excel-compatible TSV/CSV text.
 
 Headers:
 
@@ -17,6 +17,7 @@ Rules:
 
 - Empty `单位` defaults to `个`.
 - `单位购买价格` maps to `Batch.purchasePrice` and means unit purchase price.
+- `.xlsx` import reads the first worksheet. Keep the first non-empty row as the header row.
 - Item matching uses `name + specification + brand + unit`.
 - Batch merge uses `itemId + locationId + purchaseDate + expiryDate`.
 - Import creates ADD Transactions.

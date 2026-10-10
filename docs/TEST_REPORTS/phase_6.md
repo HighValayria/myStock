@@ -11,6 +11,7 @@ Phase 6 implements V0.1 data management only: standard Excel-compatible import/e
 - Settings page data management entry.
 - `miniprogram/pages/data-management/*` for import preview, import commit, export, restore preview, and restore confirmation.
 - `cloudfunctions/dataManage` with `previewExcelImport`, `commitExcelImport`, `exportExcelText`, `exportBackup`, `previewRestore`, and `restoreBackup`.
+- Real `.xlsx` import support for the first worksheet, plus TSV/CSV text fallback.
 - `ImportExportService` for automated coverage of parsing, preview, import, backup, and restore behavior.
 - Standard Excel fields documented in `docs/EXCEL_TEMPLATE.md`.
 - JSON backup format documented in `docs/BACKUP_FORMAT.md`.
@@ -28,12 +29,12 @@ npm test
 Result:
 
 ```text
-62 tests passed
+63 tests passed
 ```
 
 Phase 6 automated coverage:
 
-- T-P6-A01 through T-P6-A18.
+- T-P6-A01 through T-P6-A19.
 - Standard Excel valid row parsing.
 - Required field and quantity validation.
 - Default unit behavior.
@@ -49,11 +50,13 @@ Phase 6 automated coverage:
 - Damaged JSON rejection.
 - Reference integrity validation.
 - Failed restore validation leaves current data unchanged.
+- XLSX parser reads a real workbook package.
 
 Additional static verification:
 
 ```bash
 node --check cloudfunctions/dataManage/index.js
+node --check cloudfunctions/dataManage/xlsx.js
 node --check miniprogram/pages/data-management/index.js
 node --check miniprogram/services/phase2-ui-service.js
 ```

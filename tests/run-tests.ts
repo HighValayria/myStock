@@ -7,6 +7,8 @@ import { DEFAULT_UNIT, UNKNOWN_EXPIRY_DATE, calculateExpiryDateFromShelfLife, pa
 import { expiryStatusLabel, formatRemainingDays, transactionQuantityText, transactionTypeLabel, visibleExpiryDate } from '../miniprogram/utils/phase3-view';
 import type { AddStockInput, Batch, Category, CreateItemInput, Item, RestockItem, Transaction } from '../miniprogram/models';
 
+declare const process: { cwd(): string };
+
 interface TestContext {
   repos: ReturnType<typeof createMemoryRepositories>;
   inventory: InventoryService;
@@ -174,6 +176,64 @@ function excelText(rows: string[][]): string {
     '物品名称\t类别\t品牌\t规格\t数量\t单位\t存放位置\t购买日期\t生产日期\t保质期数值\t保质期单位\t到期日期\t单位购买价格\t购买渠道\t低库存阈值\t临期阈值\t备注',
     ...rows.map((row) => row.join('\t')),
   ].join('\n');
+}
+
+function zipStored(entries: Array<{ name: string; text: string }>): any {
+  const nodeRequire = require as (path: string) => any;
+  const { Buffer } = nodeRequire('buffer');
+  const localParts: any[] = [];
+  const centralParts: any[] = [];
+  let offset = 0;
+  for (const entry of entries) {
+    const name = Buffer.from(entry.name, 'utf8');
+    const data = Buffer.from(entry.text, 'utf8');
+    const local = Buffer.alloc(30);
+    local.writeUInt32LE(0x04034b50, 0);
+    local.writeUInt16LE(20, 4);
+    local.writeUInt16LE(0, 6);
+    local.writeUInt16LE(0, 8);
+    local.writeUInt32LE(0, 14);
+    local.writeUInt32LE(data.length, 18);
+    local.writeUInt32LE(data.length, 22);
+    local.writeUInt16LE(name.length, 26);
+    local.writeUInt16LE(0, 28);
+    localParts.push(local, name, data);
+    const central = Buffer.alloc(46);
+    central.writeUInt32LE(0x02014b50, 0);
+    central.writeUInt16LE(20, 4);
+    central.writeUInt16LE(20, 6);
+    central.writeUInt16LE(0, 8);
+    central.writeUInt16LE(0, 10);
+    central.writeUInt32LE(0, 16);
+    central.writeUInt32LE(data.length, 20);
+    central.writeUInt32LE(data.length, 24);
+    central.writeUInt16LE(name.length, 28);
+    central.writeUInt16LE(0, 30);
+    central.writeUInt16LE(0, 32);
+    central.writeUInt32LE(0, 38);
+    central.writeUInt32LE(offset, 42);
+    centralParts.push(central, name);
+    offset += local.length + name.length + data.length;
+  }
+  const centralSize = centralParts.reduce((sum, part) => sum + part.length, 0);
+  const eocd = Buffer.alloc(22);
+  eocd.writeUInt32LE(0x06054b50, 0);
+  eocd.writeUInt16LE(entries.length, 8);
+  eocd.writeUInt16LE(entries.length, 10);
+  eocd.writeUInt32LE(centralSize, 12);
+  eocd.writeUInt32LE(offset, 16);
+  return Buffer.concat([...localParts, ...centralParts, eocd]);
+}
+
+function sampleXlsxBuffer(): any {
+  const sheet = [
+    '<?xml version="1.0" encoding="UTF-8"?>',
+    '<worksheet><sheetData>',
+    '<row r="1"><c r="A1" t="inlineStr"><is><t>物品名称</t></is></c><c r="B1" t="inlineStr"><is><t>数量</t></is></c><c r="C1" t="inlineStr"><is><t>单位</t></is></c></row>',
+    '<row r="2"><c r="A2" t="inlineStr"><is><t>牛奶</t></is></c><c r="B2"><v>2</v></c><c r="C2" t="inlineStr"><is><t>盒</t></is></c></row>',
+    '</sheetData></worksheet>',
+  ].join('');
+  return zipStored([{ name: 'xl/worksheets/sheet1.xml', text: sheet }]);
 }
 
 function sumTrend(points: Array<{ addOperationCount: number; consumeOperationCount: number }>, key: 'addOperationCount' | 'consumeOperationCount'): number {
@@ -833,6 +893,15 @@ const tests: Array<[string, () => Promise<void>]> = [
     const backup = await importExport(repos).exportBackup();
     await assertRejects(() => importExport(repos).restoreBackup({ ...backup, schemaVersion: 999 }), 'VALIDATION_ERROR', 'restore should reject bad version');
     assertEqual((await repos.items.listByUser(USER_ID)).length, 1, 'current data unchanged');
+  }],
+
+  ['T-P6-A19 XLSX parser reads real workbook package', async () => {
+    const nodeRequire = require as (path: string) => any;
+    const { parseXlsxBuffer } = nodeRequire(`${process.cwd()}/cloudfunctions/dataManage/xlsx.js`);
+    const rows = parseXlsxBuffer(sampleXlsxBuffer());
+    assertEqual(rows[0][0], '物品名称', 'xlsx header');
+    assertEqual(rows[1][0], '牛奶', 'xlsx data name');
+    assertEqual(rows[1][1], '2', 'xlsx data quantity');
   }],
 ];
 

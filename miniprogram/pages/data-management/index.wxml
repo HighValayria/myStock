@@ -14,7 +14,8 @@
       <button size="mini" type="primary" bindtap="previewImport">预览</button>
       <button size="mini" class="success" bindtap="commitImport">确认导入</button>
     </view>
-    <textarea class="textarea" value="{{importText}}" placeholder="粘贴标准 Excel/CSV/TSV 内容。必填：物品名称、数量；单位为空时默认为 个。" bindinput="onImportInput" />
+    <view wx:if="{{importFileName}}" class="file-name">已选择：{{importFileName}}</view>
+    <textarea class="textarea" value="{{importText}}" placeholder="选择 .xlsx 文件，或粘贴标准 CSV/TSV 内容。必填：物品名称、数量；单位为空时默认为 个。" bindinput="onImportInput" />
     <view wx:if="{{importPreview}}" class="result">
       <view>预览：共 {{importPreview.totalRows}} 行，{{importPreview.validRows}} 行可导入，{{importPreview.errorRows}} 行错误</view>
       <view wx:if="{{importPreview.unknownFields.length}}">未知字段：{{importPreview.unknownFields}}</view>

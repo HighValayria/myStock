@@ -42,7 +42,7 @@ Phase 2 remains code-complete for the Add / Consume / Edit loop. TC-P2-009 Undo 
 - `inventoryRead.getAnalysisOverview` aggregates Phase 5 read models server-side using current OPENID.
 - `Batch.purchasePrice` is frozen as unit purchase price. UI labels use “单位购买价格”.
 - Phase 6 Data Management replaces the Settings placeholder entry with Excel / JSON data actions.
-- `dataManage` cloud function supports Excel-compatible TSV/CSV preview, commit, export, JSON backup export, restore preview, and restore.
+- `dataManage` cloud function supports real `.xlsx` import, Excel-compatible TSV/CSV preview, commit, export, JSON backup export, restore preview, and restore.
 - Excel import uses standard headers, deterministic aliases, `name + specification + brand + unit` item matching, existing Batch merge rules, ADD Transactions, and row-level idempotency via `importOperationId:row:<rowNumber>`.
 - JSON backup contains categories, items, batches, transactions, locations, reminders, restockItems, and settings. Restore validates references first, then fully replaces current-user data and rebinds `_openid` to the current WeChat identity.
 
@@ -57,10 +57,10 @@ npm test
 Latest result:
 
 ```text
-62 tests passed
+63 tests passed
 ```
 
-Coverage includes Phase 1/2/3 regression, Phase 4 Reminder and Restock lifecycle tests T-P4-A01 through T-P4-A16, Phase 5 Analytics tests T-P5-A01 through T-P5-A10, and Phase 6 Excel / JSON tests T-P6-A01 through T-P6-A18.
+Coverage includes Phase 1/2/3 regression, Phase 4 Reminder and Restock lifecycle tests T-P4-A01 through T-P4-A16, Phase 5 Analytics tests T-P5-A01 through T-P5-A10, and Phase 6 Excel / JSON tests T-P6-A01 through T-P6-A19.
 
 Additional static verification:
 
@@ -68,6 +68,7 @@ Additional static verification:
 node --check cloudfunctions/inventoryRead/index.js
 node --check cloudfunctions/inventoryWrite/index.js
 node --check cloudfunctions/dataManage/index.js
+node --check cloudfunctions/dataManage/xlsx.js
 node --check miniprogram/pages/analysis/index.js
 node --check miniprogram/pages/data-management/index.js
 node --check miniprogram/pages/reminders/index.js

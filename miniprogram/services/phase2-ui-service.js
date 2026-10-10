@@ -162,11 +162,13 @@ async function getAnalysisOverview(options = {}) {
         range: options.range || '30d',
     });
 }
-async function previewExcelImport(text, importOperationId) {
-    return callCloudFunction('dataManage', 'previewExcelImport', { text, importOperationId });
+async function previewExcelImport(input, importOperationId) {
+    const payload = typeof input === 'string' ? { text: input, importOperationId } : { ...input, importOperationId };
+    return callCloudFunction('dataManage', 'previewExcelImport', payload);
 }
-async function commitExcelImport(text, importOperationId) {
-    return callCloudFunction('dataManage', 'commitExcelImport', { text, importOperationId });
+async function commitExcelImport(input, importOperationId) {
+    const payload = typeof input === 'string' ? { text: input, importOperationId } : { ...input, importOperationId };
+    return callCloudFunction('dataManage', 'commitExcelImport', payload);
 }
 async function exportExcelText() {
     return callCloudFunction('dataManage', 'exportExcelText');

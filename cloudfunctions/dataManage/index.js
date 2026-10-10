@@ -1,6 +1,7 @@
 "use strict";
 
 const cloud = require("wx-server-sdk");
+const { parseXlsxBuffer } = require("./xlsx");
 
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 
@@ -148,6 +149,44 @@ function parseTable(text) {
   });
   return { rows, unknownFields };
 }
+function excelSerialDate(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric) || numeric <= 0) return String(value || "");
+  const date = new Date(Date.UTC(1899, 11, 30) + Math.round(numeric) * MS_PER_DAY);
+  return todayText(date);
+}
+function normalizeSheetDateCell(header, value) {
+  if (!["购买日期", "生产日期", "到期日期"].includes(header)) return value;
+  const text = normalizeText(value);
+  return /^\d+(\.\d+)?$/.test(text) ? excelSerialDate(text) : text;
+}
+function parseSheetTable(sheetRows) {
+  const firstRowIndex = sheetRows.findIndex((row) => row.some((cell) => normalizeText(cell)));
+  if (firstRowIndex < 0) return { rows: [], unknownFields: [] };
+  const headers = sheetRows[firstRowIndex].map(normalizeHeader);
+  const known = new Set(EXCEL_HEADERS);
+  const unknownFields = headers.filter((header) => header && !known.has(header));
+  const rows = sheetRows.slice(firstRowIndex + 1)
+    .map((cells, index) => {
+      const values = {};
+      headers.forEach((header, cellIndex) => {
+        if (known.has(header)) values[header] = normalizeSheetDateCell(header, cells[cellIndex] || "");
+      });
+      return { rowNumber: firstRowIndex + index + 2, values };
+    })
+    .filter((row) => Object.values(row.values).some((value) => normalizeText(value)));
+  return { rows, unknownFields };
+}
+function parseExcelPayload(payload) {
+  if (payload.fileBase64) {
+    const buffer = Buffer.from(String(payload.fileBase64), "base64");
+    if (buffer.length >= 2 && buffer[0] === 0x50 && buffer[1] === 0x4b) return parseSheetTable(parseXlsxBuffer(buffer));
+    return parseTable(buffer.toString("utf8"));
+  }
+  const text = payload.text || "";
+  if (String(text).startsWith("PK")) throw dataError("XLSX 文件不能按文本读取，请重新选择 .xlsx 文件后预览。");
+  return parseTable(text);
+}
 async function queryAll(collectionName, where) {
   const collection = db.collection(collectionName).where(where);
   const output = [];
@@ -241,7 +280,7 @@ function previewRows(rows, unknownFields, snapshot, importOperationId) {
   };
 }
 async function previewExcelImport(openid, payload) {
-  const parsed = parseTable(payload.text || "");
+  const parsed = parseExcelPayload(payload || {});
   const snapshot = await allUserData(openid);
   return previewRows(parsed.rows, parsed.unknownFields, snapshot, payload.importOperationId);
 }

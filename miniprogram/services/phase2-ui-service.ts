@@ -197,6 +197,12 @@ export interface Phase6ExcelExport {
   text: string;
 }
 
+export interface Phase6ExcelImportPayload {
+  text?: string;
+  fileBase64?: string;
+  fileName?: string;
+}
+
 export interface Phase6BackupExport {
   schemaVersion: number;
   appVersion: string;
@@ -347,12 +353,14 @@ export async function getAnalysisOverview(options: Phase5AnalysisQuery = {}): Pr
   });
 }
 
-export async function previewExcelImport(text: string, importOperationId?: string): Promise<Phase6ImportPreview> {
-  return callCloudFunction<Phase6ImportPreview>('dataManage', 'previewExcelImport', { text, importOperationId });
+export async function previewExcelImport(input: string | Phase6ExcelImportPayload, importOperationId?: string): Promise<Phase6ImportPreview> {
+  const payload = typeof input === 'string' ? { text: input, importOperationId } : { ...input, importOperationId };
+  return callCloudFunction<Phase6ImportPreview>('dataManage', 'previewExcelImport', payload);
 }
 
-export async function commitExcelImport(text: string, importOperationId: string): Promise<Phase6ImportResult> {
-  return callCloudFunction<Phase6ImportResult>('dataManage', 'commitExcelImport', { text, importOperationId });
+export async function commitExcelImport(input: string | Phase6ExcelImportPayload, importOperationId: string): Promise<Phase6ImportResult> {
+  const payload = typeof input === 'string' ? { text: input, importOperationId } : { ...input, importOperationId };
+  return callCloudFunction<Phase6ImportResult>('dataManage', 'commitExcelImport', payload);
 }
 
 export async function exportExcelText(): Promise<Phase6ExcelExport> {

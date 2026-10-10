@@ -10,6 +10,8 @@ interface DataManagementPageData {
   loading: boolean;
   error: string;
   importText: string;
+  importFileName: string;
+  importFileBase64: string;
   importOperationId: string;
   importPreview: ImportPreview | null;
   importResult: ImportResult | null;
@@ -22,7 +24,8 @@ interface DataManagementPageData {
 interface DataManagementPage {
   data: DataManagementPageData;
   setData(data: Partial<DataManagementPageData>): void;
-  readChosenFile(): Promise<string | null>;
+  readChosenTextFile(): Promise<string | null>;
+  readChosenImportFile(): Promise<{ name: string; text?: string; base64?: string } | null>;
   previewImport(): Promise<void>;
   commitImport(): Promise<void>;
   exportExcel(): Promise<void>;
@@ -69,11 +72,17 @@ function parseJson(text: string): unknown {
   }
 }
 
+function isXlsxFile(name: string, base64: string): boolean {
+  return /\.xlsx$/i.test(name) || base64.startsWith('UEs');
+}
+
 Page({
   data: {
     loading: false,
     error: '',
     importText: '',
+    importFileName: '',
+    importFileBase64: '',
     importOperationId: '',
     importPreview: null,
     importResult: null,
@@ -84,7 +93,7 @@ Page({
   } as DataManagementPageData,
 
   onImportInput(this: DataManagementPage, event: { detail: { value: string } }) {
-    this.setData({ importText: event.detail.value, importPreview: null, importResult: null, error: '' });
+    this.setData({ importText: event.detail.value, importFileName: '', importFileBase64: '', importPreview: null, importResult: null, error: '' });
   },
 
   onRestoreInput(this: DataManagementPage, event: { detail: { value: string } }) {
@@ -92,18 +101,26 @@ Page({
   },
 
   async chooseImportFile(this: DataManagementPage) {
-    const text = await this.readChosenFile();
-    if (text != null) this.setData({ importText: text, importPreview: null, importResult: null, error: '' });
+    const file = await this.readChosenImportFile();
+    if (!file) return;
+    this.setData({
+      importText: file.text || '',
+      importFileName: file.name,
+      importFileBase64: file.base64 || '',
+      importPreview: null,
+      importResult: null,
+      error: '',
+    });
   },
 
   async chooseRestoreFile(this: DataManagementPage) {
-    const text = await this.readChosenFile();
+    const text = await this.readChosenTextFile();
     if (text != null) this.setData({ restoreText: text, restorePreview: null, error: '' });
   },
 
-  async readChosenFile(this: DataManagementPage): Promise<string | null> {
+  async readChosenTextFile(this: DataManagementPage): Promise<string | null> {
     const wxAny = wx as unknown as {
-      chooseMessageFile?: (options: { count: number; type: string; success?: (res: { tempFiles: Array<{ path: string }> }) => void; fail?: (err: unknown) => void }) => void;
+      chooseMessageFile?: (options: { count: number; type: string; success?: (res: { tempFiles: Array<{ path: string; name?: string }> }) => void; fail?: (err: unknown) => void }) => void;
       getFileSystemManager?: () => { readFileSync: (path: string, encoding: string) => string };
     };
     if (!wxAny.chooseMessageFile || !wxAny.getFileSystemManager) {
@@ -129,15 +146,58 @@ Page({
     });
   },
 
+  async readChosenImportFile(this: DataManagementPage): Promise<{ name: string; text?: string; base64?: string } | null> {
+    const wxAny = wx as unknown as {
+      chooseMessageFile?: (options: { count: number; type: string; success?: (res: { tempFiles: Array<{ path: string; name?: string }> }) => void; fail?: (err: unknown) => void }) => void;
+      getFileSystemManager?: () => { readFileSync: (path: string, encoding: string) => string };
+    };
+    if (!wxAny.chooseMessageFile || !wxAny.getFileSystemManager) {
+      wx.showToast({ title: '可直接粘贴表格内容', icon: 'none' });
+      return null;
+    }
+    return new Promise((resolve) => {
+      wxAny.chooseMessageFile?.({
+        count: 1,
+        type: 'file',
+        success: (res) => {
+          try {
+            const file = res.tempFiles[0];
+            const path = file?.path;
+            if (!path) {
+              resolve(null);
+              return;
+            }
+            const name = file.name || path.split('/').pop() || 'import.xlsx';
+            const fs = wxAny.getFileSystemManager?.();
+            const base64 = fs?.readFileSync(path, 'base64') || '';
+            if (isXlsxFile(name, base64)) {
+              resolve({ name, base64 });
+              return;
+            }
+            resolve({ name, text: fs?.readFileSync(path, 'utf8') || '' });
+          } catch {
+            wx.showToast({ title: '读取文件失败', icon: 'none' });
+            resolve(null);
+          }
+        },
+        fail: () => resolve(null),
+      });
+    });
+  },
+
   async previewImport(this: DataManagementPage) {
-    if (!this.data.importText.trim()) {
+    if (!this.data.importText.trim() && !this.data.importFileBase64) {
       wx.showToast({ title: '请先粘贴或选择 Excel 内容', icon: 'none' });
       return;
     }
     this.setData({ loading: true, error: '', importResult: null });
     try {
       const { previewExcelImport } = getPhase2Service();
-      const preview = await previewExcelImport(this.data.importText, this.data.importOperationId || undefined);
+      const preview = await previewExcelImport({
+        text: this.data.importText,
+        fileBase64: this.data.importFileBase64,
+        fileName: this.data.importFileName,
+      }, this.data.importOperationId || undefined);
       this.setData({ loading: false, importPreview: preview, importOperationId: preview.importOperationId });
     } catch (error) {
       this.setData({ loading: false, error: mapUserError(error) });
@@ -159,7 +219,11 @@ Page({
     this.setData({ loading: true, error: '' });
     try {
       const { commitExcelImport } = getPhase2Service();
-      const result = await commitExcelImport(this.data.importText, preview.importOperationId);
+      const result = await commitExcelImport({
+        text: this.data.importText,
+        fileBase64: this.data.importFileBase64,
+        fileName: this.data.importFileName,
+      }, preview.importOperationId);
       this.setData({ loading: false, importResult: result });
       wx.showToast({ title: '导入完成', icon: 'success' });
     } catch (error) {
