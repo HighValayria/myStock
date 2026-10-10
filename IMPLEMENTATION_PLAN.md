@@ -312,7 +312,7 @@ Not handled yet:
 
 ## Phase 5: Analytics Page
 
-Status: Code complete for V0.1 Analytics page, StatisticsService aggregation, `inventoryRead.getAnalysisOverview`, and Phase 5 automated statistics coverage. Manual UI acceptance TC-P5-001 through TC-P5-010 remains pending in WeChat DevTools after deploying the updated `inventoryRead` cloud function. Inventory value is intentionally shown as unavailable until `Batch.purchasePrice` semantics are frozen.
+Status: Accepted for V0.1 Analytics page, StatisticsService aggregation, `inventoryRead.getAnalysisOverview`, Phase 5 automated statistics coverage, and manual UI acceptance TC-P5-001 through TC-P5-010. Inventory value is intentionally shown as unavailable until `Batch.purchasePrice` semantics are frozen.
 
 Goal:
 

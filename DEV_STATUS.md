@@ -2,7 +2,7 @@
 
 ## Current Phase
 
-Phase 5 implementation is code-complete for the V0.1 Analytics page. Automated verification passes. WeChat DevTools manual UI acceptance for TC-P5-001 through TC-P5-010 is pending after deploying the updated `inventoryRead` cloud function.
+Phase 5 implementation is accepted for the V0.1 Analytics page. Automated verification passes, and WeChat DevTools manual UI acceptance TC-P5-001 through TC-P5-010 passed on 2026-10-10 after deploying the updated `inventoryRead` cloud function.
 
 Phase 4 implementation remains code-complete for Reminder System and Restock. WeChat DevTools manual UI acceptance for TC-P4-001 through TC-P4-020 is pending after deploying the updated `inventoryRead` and `inventoryWrite` cloud functions.
 
@@ -89,7 +89,7 @@ Pending Phase 4 manual UI acceptance in WeChat DevTools:
 
 - TC-P4-001 through TC-P4-020.
 
-Pending Phase 5 manual UI acceptance in WeChat DevTools:
+Passed Phase 5 manual UI acceptance in WeChat DevTools:
 
 - TC-P5-001 through TC-P5-010.
 
@@ -118,4 +118,4 @@ Deferred manual verification:
 
 ## Phase 5 Readiness
 
-Phase 5 has been started and code-completed per explicit user direction, even though Phase 3/4 manual acceptance remains pending. Do not start Phase 6 until Phase 5 manual acceptance and the listed Phase 2/3/4 regression checks pass in WeChat DevTools. TC-P2-009 remains blocked by product definition and does not count as a code failure.
+Phase 5 is accepted and can be used as the baseline for the next phase. Phase 3/4 manual acceptance remains pending in this document unless separately confirmed. Phase 6 may start when the user explicitly requests it. TC-P2-009 remains blocked by product definition and does not count as a code failure.

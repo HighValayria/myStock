@@ -49,12 +49,12 @@ Phase 5 automated coverage:
 
 ## Manual Verification
 
-Not executed in WeChat DevTools during this report.
+Executed in WeChat DevTools and reported passed by the user on 2026-10-10.
 
-Pending:
+Passed:
 
 - TC-P5-001 through TC-P5-010.
-- Deploy updated `cloudfunctions/inventoryRead` before testing the analysis tab.
+- Updated `cloudfunctions/inventoryRead` deployed successfully before testing the analysis tab.
 
 ## Blocked / Deferred
 
@@ -71,4 +71,4 @@ Pending:
 
 ## Next Step
 
-Run Phase 5 manual acceptance in WeChat DevTools after deploying `inventoryRead`. Do not start Phase 6 until Phase 5 manual acceptance and required Phase 2/3/4 regression checks pass.
+Phase 5 is accepted. Do not start Phase 6 until the user explicitly requests it.
