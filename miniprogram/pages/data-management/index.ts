@@ -14,9 +14,71 @@ const fieldChoices = [
   ['batch.purchasePrice', '单位购买价格'], ['batch.purchaseChannel', '购买渠道'], ['batch.note', '备注'],
   ['item.lowStockThreshold', '低库存阈值'], ['item.expiryWarningDays', '临期阈值'],
 ].map(([field, label]) => ({ field, label }));
-type SmartView = SmartPreview & { plan: SmartPreview['plan'] & { tables: Array<SmartPreview['plan']['tables'][number] & { mapping: Array<SmartPreview['plan']['tables'][number]['mapping'][number] & { choiceIndex: number; label: string }> }> } };
+const editableFieldChoices = fieldChoices.filter(choice => choice.field !== 'IGNORE' && choice.field !== 'UNKNOWN');
+const sheetRoleLabels: Record<string, string> = {
+  CURRENT_INVENTORY: '当前库存',
+  HISTORICAL_DATA: '历史记录',
+  INSTRUCTIONS: '说明',
+  ANALYTICS: '统计',
+  REFERENCE: '参考资料',
+  IGNORE: '忽略',
+  UNKNOWN: '待判断',
+};
+type SmartCandidate = SmartPreview['candidates'][number];
+type SmartCandidateView = SmartCandidate & {
+  sourceLabel: string;
+  summary: string;
+  editFields: Array<{ field: string; label: string; value: string }>;
+};
+type SmartView = SmartPreview & {
+  candidates: SmartCandidateView[];
+  plan: SmartPreview['plan'] & {
+    sheets: Array<SmartPreview['plan']['sheets'][number] & { roleLabel: string }>;
+    tables: Array<SmartPreview['plan']['tables'][number] & {
+      headerRowLabel: number;
+      endRowLabel: number;
+      startColumnLabel: number;
+      endColumnLabel: number;
+      mapping: Array<SmartPreview['plan']['tables'][number]['mapping'][number] & { choiceIndex: number; label: string }>;
+    }>;
+  };
+};
+
+function candidateView(candidate: SmartCandidate): SmartCandidateView {
+  const values = candidate.values;
+  const sourceLabel = [
+    candidate.source.sheet || candidate.source.file,
+    candidate.source.row ? `第${candidate.source.row}行` : '',
+  ].filter(Boolean).join(' ');
+  return {
+    ...candidate,
+    sourceLabel,
+    summary: `${values['item.name'] || '名称缺失'} · ${values['batch.quantity'] || '数量缺失'}${values['item.unit'] || '个'} · ${values['batch.location'] || '位置未指定'}`,
+    editFields: editableFieldChoices.map(choice => ({ ...choice, value: values[choice.field] || '' })),
+  };
+}
+
 function smartView(preview: SmartPreview): SmartView {
-  return { ...preview, plan: { ...preview.plan, tables: preview.plan.tables.map(table => ({ ...table, mapping: table.mapping.map(mapping => ({ ...mapping, choiceIndex: Math.max(0, fieldChoices.findIndex(f => f.field === mapping.targetField)), label: fieldChoices.find(f => f.field === mapping.targetField)?.label || '待指定' })) })) } };
+  return {
+    ...preview,
+    candidates: preview.candidates.map(candidateView),
+    plan: {
+      ...preview.plan,
+      sheets: preview.plan.sheets.map(sheet => ({ ...sheet, roleLabel: sheetRoleLabels[sheet.role] || '待判断' })),
+      tables: preview.plan.tables.map(table => ({
+        ...table,
+        headerRowLabel: table.headerRow + 1,
+        endRowLabel: table.endRow + 1,
+        startColumnLabel: table.startColumn + 1,
+        endColumnLabel: table.endColumn + 1,
+        mapping: table.mapping.map(mapping => ({
+          ...mapping,
+          choiceIndex: Math.max(0, fieldChoices.findIndex(field => field.field === mapping.targetField)),
+          label: fieldChoices.find(field => field.field === mapping.targetField)?.label || '待指定',
+        })),
+      })),
+    },
+  };
 }
 
 interface DataManagementPageData {
@@ -205,21 +267,30 @@ Page({
     if (!edit) { edit = { id: event.currentTarget.dataset.id, values: {}, confirmed: false }; edits.push(edit); }
     edit.values[event.currentTarget.dataset.field] = event.detail.value;
     edit.confirmed = false;
-    this.setData({ candidateEdits: edits, smartDirty: true });
+    const preview = this.data.smartPreview;
+    const candidate = preview?.candidates.find(item => item.id === event.currentTarget.dataset.id);
+    if (candidate) {
+      candidate.values[event.currentTarget.dataset.field] = event.detail.value;
+      candidate.confirmed = false;
+    }
+    this.setData({ candidateEdits: edits, smartPreview: preview ? smartView(preview) : null, smartDirty: true });
   },
   confirmCandidate(this: DataManagementPage, event: { currentTarget: { dataset: { id: string } }; detail: { value: boolean } }) {
     const edits = [...this.data.candidateEdits];
     let edit = edits.find(e => e.id === event.currentTarget.dataset.id);
     if (!edit) { edit = { id: event.currentTarget.dataset.id, values: {}, confirmed: false }; edits.push(edit); }
     edit.confirmed = event.detail.value;
-    this.setData({ candidateEdits: edits, smartDirty: true });
+    const preview = this.data.smartPreview;
+    const candidate = preview?.candidates.find(item => item.id === event.currentTarget.dataset.id);
+    if (candidate) candidate.confirmed = event.detail.value;
+    this.setData({ candidateEdits: edits, smartPreview: preview, smartDirty: true });
   },
   addManualCandidate(this: DataManagementPage) {
     const preview = this.data.smartPreview;
     if (!preview) return;
     const candidate = { id: `manual:${Date.now()}`, values: {}, source: { file: '手动录入', sourceText: '' }, confidence: 1, warnings: ['用户手动录入'], confirmed: false };
     preview.candidates.push(candidate);
-    this.setData({ smartPreview: preview, candidateEdits: [...this.data.candidateEdits, { id: candidate.id, values: {}, confirmed: false }], editingCandidateId: candidate.id, smartDirty: true });
+    this.setData({ smartPreview: smartView(preview), candidateEdits: [...this.data.candidateEdits, { id: candidate.id, values: {}, confirmed: false }], editingCandidateId: candidate.id, smartDirty: true });
   },
   editCandidate(this: DataManagementPage, event: { currentTarget: { dataset: { id: string } } }) {
     this.setData({ editingCandidateId: this.data.editingCandidateId === event.currentTarget.dataset.id ? '' : event.currentTarget.dataset.id });

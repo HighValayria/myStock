@@ -22,15 +22,15 @@
       <view class="section-title preview-title">识别结果</view>
       <view wx:for="{{smartPreview.plan.warnings}}" wx:key="*this" class="error-line">{{item}}</view>
       <view wx:for="{{smartPreview.plan.sheets}}" wx:key="index" class="switch-line">
-        <view>{{item.name}} · {{item.role === 'CURRENT_INVENTORY' ? '当前库存' : item.role === 'HISTORICAL_DATA' ? '历史记录' : item.role === 'INSTRUCTIONS' ? '说明' : item.role === 'ANALYTICS' ? '统计' : item.role === 'REFERENCE' ? '参考资料' : item.role === 'IGNORE' ? '忽略' : '待判断'}}<view class="file-name">{{item.reason}} · {{item.confidence}}</view></view>
+        <view>{{item.name}} · {{item.roleLabel}}<view class="file-name">{{item.reason}} · {{item.confidence}}</view></view>
         <switch checked="{{item.selected}}" data-index="{{item.index}}" bindchange="onSheetChange" />
       </view>
       <view wx:for="{{smartPreview.plan.tables}}" wx:for-item="table" wx:key="id" class="table-region">
-        <view class="switch-line">{{table.sheet}} · 第 {{table.headerRow + 1}}–{{table.endRow + 1}} 行 <switch checked="{{table.selected}}" data-id="{{table.id}}" bindchange="onTableChange" /></view>
-        <view class="field-line"><text>表头行</text><input type="number" value="{{table.headerRow + 1}}" data-id="{{table.id}}" data-field="headerRow" bindblur="onRegionInput" /></view>
-        <view class="field-line"><text>结束行</text><input type="number" value="{{table.endRow + 1}}" data-id="{{table.id}}" data-field="endRow" bindblur="onRegionInput" /></view>
-        <view class="field-line"><text>起始列</text><input type="number" value="{{table.startColumn + 1}}" data-id="{{table.id}}" data-field="startColumn" bindblur="onRegionInput" /></view>
-        <view class="field-line"><text>结束列</text><input type="number" value="{{table.endColumn + 1}}" data-id="{{table.id}}" data-field="endColumn" bindblur="onRegionInput" /></view>
+        <view class="switch-line">{{table.sheet}} · 第 {{table.headerRowLabel}}–{{table.endRowLabel}} 行 <switch checked="{{table.selected}}" data-id="{{table.id}}" bindchange="onTableChange" /></view>
+        <view class="field-line"><text>表头行</text><input type="number" value="{{table.headerRowLabel}}" data-id="{{table.id}}" data-field="headerRow" bindblur="onRegionInput" /></view>
+        <view class="field-line"><text>结束行</text><input type="number" value="{{table.endRowLabel}}" data-id="{{table.id}}" data-field="endRow" bindblur="onRegionInput" /></view>
+        <view class="field-line"><text>起始列</text><input type="number" value="{{table.startColumnLabel}}" data-id="{{table.id}}" data-field="startColumn" bindblur="onRegionInput" /></view>
+        <view class="field-line"><text>结束列</text><input type="number" value="{{table.endColumnLabel}}" data-id="{{table.id}}" data-field="endColumn" bindblur="onRegionInput" /></view>
         <view class="field-line"><text>上下文类别</text><input value="{{table.categoryHint}}" data-id="{{table.id}}" data-field="categoryHint" bindinput="onHintInput" /></view>
         <view class="field-line"><text>上下文位置</text><input value="{{table.locationHint}}" data-id="{{table.id}}" data-field="locationHint" bindinput="onHintInput" /></view>
         <view wx:for="{{table.mapping}}" wx:for-item="mapping" wx:key="column" class="mapping-line">
@@ -40,12 +40,12 @@
       </view>
       <view class="section-title preview-title">候选库存</view>
       <view wx:for="{{smartPreview.candidates}}" wx:for-item="candidate" wx:key="id" class="candidate-row">
-        <view class="file-name">{{candidate.source.sheet || candidate.source.file}} {{candidate.source.row ? '第' + candidate.source.row + '行' : ''}}</view>
+        <view class="file-name">{{candidate.sourceLabel}}</view>
         <view class="source-text">{{candidate.source.sourceText}}</view>
-        <view>{{candidate.values['item.name'] || '名称缺失'}} · {{candidate.values['batch.quantity'] || '数量缺失'}}{{candidate.values['item.unit'] || '个'}} · {{candidate.values['batch.location'] || '位置未指定'}}</view>
+        <view>{{candidate.summary}}</view>
         <button size="mini" data-id="{{candidate.id}}" bindtap="editCandidate">{{editingCandidateId === candidate.id ? '收起' : '编辑'}}</button>
-        <view wx:if="{{editingCandidateId === candidate.id}}" wx:for="{{fieldChoices}}" wx:for-item="field" wx:key="field">
-          <view wx:if="{{field.field !== 'IGNORE' &amp;&amp; field.field !== 'UNKNOWN'}}" class="field-line"><text>{{field.label}}</text><input value="{{candidate.values[field.field]}}" data-id="{{candidate.id}}" data-field="{{field.field}}" bindinput="onCandidateInput" /></view>
+        <view wx:if="{{editingCandidateId === candidate.id}}" wx:for="{{candidate.editFields}}" wx:for-item="field" wx:key="field">
+          <view class="field-line"><text>{{field.label}}</text><input value="{{field.value}}" data-id="{{candidate.id}}" data-field="{{field.field}}" bindinput="onCandidateInput" /></view>
         </view>
         <view wx:for="{{candidate.warnings}}" wx:key="*this" class="error-line">{{item}}</view>
         <view class="switch-line">置信度 {{candidate.confidence}} · 已核对 <switch checked="{{candidate.confirmed}}" data-id="{{candidate.id}}" bindchange="confirmCandidate" /></view>
