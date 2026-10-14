@@ -20,9 +20,10 @@ const sheetRoleLabels = {
     IGNORE: '忽略',
     UNKNOWN: '待判断',
 };
-function candidateView(candidate) {
+function candidateView(candidate, validationErrors = []) {
     const values = candidate.values;
-    const needsReview = !candidate.confirmed && Boolean(candidate.warnings.length || candidate.confidence < 0.85);
+    const hasValidationError = validationErrors.length > 0;
+    const needsReview = hasValidationError || (!candidate.confirmed && Boolean(candidate.warnings.length || candidate.confidence < 0.85));
     const sourceLabel = [
         candidate.source.sheet || candidate.source.file,
         candidate.source.row ? `第${candidate.source.row}行` : '',
@@ -31,13 +32,27 @@ function candidateView(candidate) {
         ...candidate,
         sourceLabel,
         summary: `${values['item.name'] || '名称缺失'} · ${values['batch.quantity'] || '数量缺失'}${values['item.unit'] || '个'} · ${values['batch.location'] || '位置未指定'}`,
-        reviewLabel: candidate.confirmed ? '已核对' : needsReview ? '需要核对' : '可直接导入',
+        reviewLabel: hasValidationError ? '需要修改' : candidate.confirmed ? '已核对' : needsReview ? '需要核对' : '可直接导入',
+        reviewClass: hasValidationError ? 'error' : candidate.confirmed ? 'confirmed' : '',
         needsReview,
-        editFields: editableFieldChoices.map(choice => ({ ...choice, value: values[choice.field] || '' })),
+        hasValidationError,
+        validationErrors,
+        editFields: editableFieldChoices.map(choice => ({
+            ...choice,
+            value: values[choice.field] || '',
+            required: choice.field === 'item.name' || choice.field === 'batch.quantity',
+        })),
     };
 }
 function smartView(preview, showAllCandidates = false) {
-    const candidates = preview.candidates.map(candidateView);
+    const errorsByCandidateIndex = new Map();
+    preview.errors.forEach(error => {
+        const candidateIndex = error.rowNumber - 2;
+        const messages = errorsByCandidateIndex.get(candidateIndex) || [];
+        messages.push(error.message);
+        errorsByCandidateIndex.set(candidateIndex, messages);
+    });
+    const candidates = preview.candidates.map((candidate, index) => candidateView(candidate, errorsByCandidateIndex.get(index) || []));
     const reviewCandidates = candidates.filter(candidate => candidate.needsReview);
     const tables = preview.plan.tables.map(table => {
         const recognizedFields = table.mapping.map(mapping => mapping.targetField);

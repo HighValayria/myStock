@@ -163,6 +163,7 @@
           <view class="smart-intro">
             <view class="smart-intro-title">只处理需要你判断的物品</view>
             <view>系统已经整理 {{smartPreview.candidates.length}} 条库存，其中 {{smartPreview.readyCandidateCount}} 条可以直接导入。</view>
+            <view class="smart-required-note"><text>*</text> 为必填：物品名称、数量。单位留空时按“个”导入。</view>
           </view>
 
           <view class="smart-review-summary">
@@ -187,17 +188,19 @@
                 <view class="smart-row-title">{{candidate.summary}}</view>
                 <view class="smart-row-meta">{{candidate.sourceLabel}}</view>
               </view>
-              <view class="review-badge {{candidate.confirmed ? 'confirmed' : ''}}">{{candidate.reviewLabel}}</view>
+              <view class="review-badge {{candidate.reviewClass}}">{{candidate.reviewLabel}}</view>
             </view>
             <view wx:if="{{candidate.source.sourceText}}" class="source-text">原文：{{candidate.source.sourceText}}</view>
             <view wx:for="{{candidate.warnings}}" wx:key="*this" class="smart-warning">{{item}}</view>
+            <view wx:for="{{candidate.validationErrors}}" wx:key="*this" class="smart-error">{{item}}</view>
+            <view wx:if="{{candidate.hasValidationError}}" class="smart-row-meta">修改后进入下一步会自动重新校验</view>
             <view class="candidate-actions">
               <button size="mini" data-id="{{candidate.id}}" bindtap="editCandidate">{{editingCandidateId === candidate.id ? '收起编辑' : '编辑'}}</button>
               <view class="candidate-confirm">已核对 <switch checked="{{candidate.confirmed}}" data-id="{{candidate.id}}" bindchange="confirmCandidate" /></view>
             </view>
             <view wx:if="{{editingCandidateId === candidate.id}}" class="candidate-editor">
               <view wx:for="{{candidate.editFields}}" wx:for-item="field" wx:key="field" class="field-line">
-                <text>{{field.label}}</text><input value="{{field.value}}" data-id="{{candidate.id}}" data-field="{{field.field}}" bindinput="onCandidateInput" />
+                <text>{{field.label}}<text wx:if="{{field.required}}" class="required-mark">*</text></text><input value="{{field.value}}" data-id="{{candidate.id}}" data-field="{{field.field}}" bindinput="onCandidateInput" />
               </view>
             </view>
           </view>
@@ -220,7 +223,7 @@
             <view>新建位置：{{smartPreview.creates.locationNames}}</view>
           </view>
           <view wx:if="{{smartPreview.needsConfirmation}}" class="smart-warning">仍有物品需要核对，请返回上一步处理。</view>
-          <view wx:for="{{smartPreview.errors}}" wx:key="rowNumber" class="smart-error">候选 {{item.rowNumber - 1}}：{{item.message}}</view>
+          <view wx:if="{{smartPreview.errorRows}}" class="smart-warning-block">还有 {{smartPreview.errorRows}} 条记录需要修改，请返回“核对物品”逐条处理。</view>
         </view>
       </scroll-view>
 

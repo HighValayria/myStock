@@ -44,6 +44,8 @@
 .smart-loading { margin-bottom: 18rpx; padding: 14rpx 16rpx; border-radius: 8rpx; background: #eff6ff; color: #1d4ed8; font-size: 24rpx; }
 .smart-intro { margin-bottom: 22rpx; padding: 18rpx; border-left: 6rpx solid #2563eb; background: #eff6ff; color: #475467; font-size: 24rpx; line-height: 1.55; }
 .smart-intro-title { margin-bottom: 4rpx; color: #1f2933; font-size: 28rpx; font-weight: 700; }
+.smart-required-note { margin-top: 10rpx; color: #344054; }
+.smart-required-note text, .required-mark { color: #d92d20; font-weight: 700; }
 .smart-intro-row { display: flex; align-items: center; justify-content: space-between; gap: 16rpx; }
 .smart-intro-row > view { min-width: 0; flex: 1; }
 .smart-intro-row button { margin: 0; flex-shrink: 0; }
@@ -86,6 +88,7 @@
 .candidate-heading > view:first-child { min-width: 0; flex: 1; }
 .review-badge { flex-shrink: 0; padding: 6rpx 10rpx; border-radius: 6rpx; background: #fff4e5; color: #b54708; font-size: 21rpx; }
 .review-badge.confirmed { background: #ecfdf3; color: #027a48; }
+.review-badge.error { background: #fee4e2; color: #b42318; }
 .candidate-actions { display: flex; align-items: center; justify-content: space-between; gap: 18rpx; margin-top: 14rpx; }
 .candidate-actions button { margin: 0; }
 .candidate-confirm { display: flex; align-items: center; gap: 10rpx; color: #475467; font-size: 23rpx; }
