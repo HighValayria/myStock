@@ -18,8 +18,14 @@ function parseSource(payload) {
       const full = sheet["!fullref"] || sheet["!ref"] || "A1";
       const extent = XLSX.utils.decode_range(full);
       if (extent.e.r >= 5000 || extent.e.c >= 100) throw new Error("每张表最多 5000 行、100 列，请拆分文件");
-      const rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: null, blankrows: true, raw: true, range: 0 })
-        .map(row => row.map(value => value instanceof Date ? value.toISOString().slice(0, 10) : value));
+      // Read cells directly. sheet_to_json rebuilds Date values at local
+      // midnight and can shift a date-only cell by one day in UTC+ timezones.
+      const rows = Array.from({ length: extent.e.r + 1 }, (_, row) =>
+        Array.from({ length: extent.e.c + 1 }, (_, column) => {
+          const cell = sheet[XLSX.utils.encode_cell({ r: row, c: column })];
+          if (!cell) return null;
+          return cell.v instanceof Date ? cell.v.toISOString().slice(0, 10) : cell.v;
+        }));
       return { name, index, rowCount: rows.length, columnCount: extent.e.c + 1, date1904: Boolean(workbook.Workbook?.WBProps?.date1904), rows };
     });
   } else {

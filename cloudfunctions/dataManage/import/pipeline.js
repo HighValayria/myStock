@@ -7,6 +7,30 @@ const { AIProvider } = require("../ai/provider");
 const Ajv = require("ajv");
 const ajv = new Ajv({ strict: true });
 const nonempty = row => row.some(v => v != null && String(v).trim());
+const DAY_MS = 86400000;
+function normalizeDateCell(value, date1904) {
+  if (value == null || value === "") return null;
+  if (typeof value === "number" || /^\d+(?:\.\d+)?$/.test(String(value).trim())) {
+    const numeric = Number(value);
+    const epoch = date1904 ? Date.UTC(1904, 0, 1) : Date.UTC(1899, 11, 30);
+    return new Date(epoch + Math.floor(numeric) * DAY_MS).toISOString().slice(0, 10);
+  }
+  const text = String(value).trim().replace(/[年/.]/g, "-").replace(/月/g, "-").replace(/日/g, "");
+  const match = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(text);
+  if (!match) return String(value).trim();
+  return `${match[1]}-${match[2].padStart(2, "0")}-${match[3].padStart(2, "0")}`;
+}
+function normalizeShelfLifeCell(value, unitHint) {
+  if (value == null || value === "") return null;
+  const text = String(value).trim();
+  const match = /^(\d+(?:\.\d+)?)\s*(天|日|月|个月|年|DAY|MONTH|YEAR)?$/i.exec(text);
+  if (!match) return { value: text, unit: unitHint || null };
+  const token = (match[2] || "").toUpperCase();
+  const unit = token === "天" || token === "日" || token === "DAY" ? "DAY"
+    : token === "月" || token === "个月" || token === "MONTH" ? "MONTH"
+      : token === "年" || token === "YEAR" ? "YEAR" : unitHint || null;
+  return { value: match[1], unit };
+}
 function detectTableCandidates(sheet) {
   const headers = [];
   sheet.rows.forEach((row, headerRow) => {
@@ -161,22 +185,43 @@ function generateCandidates(source, plan, edits = []) {
     for (const table of plan.tables) {
       if (!table.selected || !plan.sheets.find(s => s.index === table.sheetIndex)?.selected) continue;
       const fields = table.mapping.filter(m => !["IGNORE", "UNKNOWN"].includes(m.targetField));
-      if (new Set(fields.map(m => m.targetField)).size !== fields.length) throw new Error("同一张表不能重复映射目标字段");
+      const duplicateFields = fields.filter((field, index) => fields.findIndex(item => item.targetField === field.targetField) !== index);
+      const allowedShelfLifeColumns = duplicateFields.length && duplicateFields.every(field => field.targetField === "batch.shelfLifeValue" && field.shelfLifeUnitHint)
+        && new Set(fields.filter(field => field.targetField === "batch.shelfLifeValue").map(field => field.shelfLifeUnitHint)).size === fields.filter(field => field.targetField === "batch.shelfLifeValue").length;
+      if (duplicateFields.length && !allowedShelfLifeColumns) throw new Error("同一张表不能重复映射目标字段");
       const sheet = source.sheets.find(s => s.index === table.sheetIndex);
       for (let index = table.headerRow + 1; index <= table.endRow; index++) {
         const row = sheet.rows[index];
         if (!nonempty(row)) continue;
-        const values = Object.fromEntries(fields.map(m => {
-          let value = row[m.column] == null ? null : String(row[m.column]).trim();
-          if (/Date$/.test(m.targetField) && value && /^\d+(\.\d+)?$/.test(value)) value = new Date((sheet.date1904 ? Date.UTC(1904, 0, 1) : Date.UTC(1899, 11, 30)) + Math.floor(Number(value)) * 86400000).toISOString().slice(0, 10);
-          return [m.targetField, value];
-        }));
         const warnings = [];
+        const values = {};
+        const displayRow = [...row];
+        for (const mapping of fields) {
+          const raw = row[mapping.column];
+          if (/Date$/.test(mapping.targetField)) {
+            const value = normalizeDateCell(raw, sheet.date1904);
+            values[mapping.targetField] = value;
+            if (value) displayRow[mapping.column] = value;
+            continue;
+          }
+          if (mapping.targetField === "batch.shelfLifeValue") {
+            const shelfLife = normalizeShelfLifeCell(raw, mapping.shelfLifeUnitHint);
+            if (!shelfLife) continue;
+            if (values["batch.shelfLifeValue"] != null && values["batch.shelfLifeValue"] !== "") {
+              warnings.push("同一行填写了多个保质期，请核对");
+              continue;
+            }
+            values["batch.shelfLifeValue"] = shelfLife.value;
+            if (shelfLife.unit) values["batch.shelfLifeUnit"] = shelfLife.unit;
+            continue;
+          }
+          values[mapping.targetField] = raw == null ? null : String(raw).trim();
+        }
         if (!values["item.category"] && table.categoryHint) { values["item.category"] = table.categoryHint; warnings.push("类别来自表上下文"); }
         if (!values["batch.location"] && table.locationHint) { values["batch.location"] = table.locationHint; warnings.push("位置来自表上下文"); }
         const confidence = Math.min(table.confidence, plan.sheets.find(s => s.index === table.sheetIndex).confidence, ...fields.map(m => m.confidence));
         if (table.mapping.some(m => m.targetField === "UNKNOWN")) warnings.push("存在未指定字段");
-        candidates.push({ id: `${table.id}:${index}`, values, source: { file: source.fileName, sheet: sheet.name, row: index + 1, table: table.id, sourceText: row.join(" | ") }, confidence, warnings, confirmed: false });
+        candidates.push({ id: `${table.id}:${index}`, values, source: { file: source.fileName, sheet: sheet.name, row: index + 1, table: table.id, sourceText: displayRow.join(" | ") }, confidence, warnings, confirmed: false });
       }
     }
   }

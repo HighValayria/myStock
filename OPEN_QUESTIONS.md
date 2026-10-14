@@ -6,6 +6,12 @@ Questions are grouped by when they must be resolved. These notes do not override
 
 ## A. Must Resolve Before The Related UI Is Completed
 
+### Q12: Shelf-Life End-Date Boundary Convention
+
+The smart-import acceptance workbook `家庭库存管理表.xlsx` calculates expiry as `EDATE(productionDate, months) - 1` or `productionDate + days - 1`, treating the production date as the first day. The current V0.1 calculation adds the shelf-life duration without subtracting one day, and standard import rejects a supplied expiry date when it differs from the calculated date.
+
+Current engineering stance: Phase 6B recognizes and preserves purchase date, production date, shelf-life value/unit, and explicit expiry date from the workbook without silently shifting any value. Whether shelf life includes the production date must be defined before changing calculation or conflict-validation rules; this requires a Design Freeze update and regression coverage across add, edit, import, reminders, and FEFO.
+
 ### Q2: Undo / Correction Basic Capability
 
 V0.1 includes “撤销 / 修正基本能力”, while delete rules prefer undo / reverse transaction for correcting mistakes. The exact undo scope is not defined: last operation only, transaction-level reversal, guided quantity correction, or some combination.

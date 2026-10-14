@@ -189,6 +189,34 @@ test("T-P6B-A26 manual header correction keeps original data", async () => {
   const plan = applyChanges(job, { tables: [{ id: table.id, headerRow: 1, endRow: 2, endColumn: 2, selected: true, mapping: [{ column: 0, targetField: "item.name" }] }] });
   const candidates = generateCandidates(job.source, plan); assert.equal(candidates[0].values["item.name"], "纸巾"); assert.equal(candidates[0].source.row, 3);
 });
+test("T-P6B-A27 family inventory headers map dates and dual shelf-life columns", async () => {
+  const headers = ["序号", "细目分类", "物品名称", "规格", "数量", "单位", "存放位置", "购买时间", "生产日期", "保质期(月)", "保质期(天)", "到期时间", "剩余天数", "状态", "备注"];
+  const job = await createImportPlan(workbook({ 护肤品: [headers,
+    [1, "水乳", "测试乳液", "159ml", 1, "瓶", "浴室柜", new Date(Date.UTC(2024, 9, 22)), new Date(Date.UTC(2024, 9, 1)), 36, null, new Date(Date.UTC(2027, 8, 30)), 362, "正常", null],
+    [2, "面膜", "测试面膜", null, 2, "盒", "浴室柜", null, new Date(Date.UTC(2026, 0, 1)), null, 90, new Date(Date.UTC(2026, 3, 1)), 90, "正常", null],
+  ] }));
+  const table = job.plan.tables[0];
+  const mapped = Object.fromEntries(table.mapping.map(mapping => [mapping.sourceColumn, mapping.targetField]));
+  assert.equal(mapped["细目分类"], "item.category");
+  assert.equal(mapped["购买时间"], "batch.purchaseDate");
+  assert.equal(mapped["到期时间"], "batch.expiryDate");
+  assert.equal(mapped["剩余天数"], "IGNORE");
+  assert.equal(mapped["状态"], "IGNORE");
+  const candidates = generateCandidates(job.source, job.plan);
+  assert.equal(candidates[0].values["batch.purchaseDate"], "2024-10-22");
+  assert.equal(candidates[0].values["batch.productionDate"], "2024-10-01");
+  assert.equal(candidates[0].values["batch.shelfLifeValue"], "36");
+  assert.equal(candidates[0].values["batch.shelfLifeUnit"], "MONTH");
+  assert.equal(candidates[0].values["batch.expiryDate"], "2027-09-30");
+  assert.equal(candidates[1].values["batch.shelfLifeValue"], "90");
+  assert.equal(candidates[1].values["batch.shelfLifeUnit"], "DAY");
+});
+test("T-P6B-A28 combined shelf-life text supplies value and unit", async () => {
+  const job = await createImportPlan({ text: "物品名称,数量,保质期\n牛奶,2,21天" });
+  const candidate = generateCandidates(job.source, job.plan)[0];
+  assert.equal(candidate.values["batch.shelfLifeValue"], "21");
+  assert.equal(candidate.values["batch.shelfLifeUnit"], "DAY");
+});
 async function main() {
   for (const [name, run] of tests) { await run(); console.log("ok - " + name); }
   console.log(`${tests.length} Phase 6B tests passed`);
