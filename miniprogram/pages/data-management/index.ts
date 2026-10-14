@@ -29,26 +29,38 @@ type SmartCandidateView = SmartCandidate & {
   sourceLabel: string;
   summary: string;
   reviewLabel: string;
+  needsReview: boolean;
   editFields: Array<{ field: string; label: string; value: string }>;
+};
+type SmartTable = SmartPreview['plan']['tables'][number];
+type SmartTableView = SmartTable & {
+  headerRowLabel: number;
+  endRowLabel: number;
+  startColumnLabel: number;
+  endColumnLabel: number;
+  itemCount: number;
+  keyFieldStatus: string;
+  mappingSummary: string;
+  unresolvedCount: number;
+  mapping: Array<SmartTable['mapping'][number] & { choiceIndex: number; label: string }>;
 };
 type SmartView = SmartPreview & {
   candidates: SmartCandidateView[];
+  reviewCandidates: SmartCandidateView[];
+  displayCandidates: SmartCandidateView[];
+  reviewCandidateCount: number;
+  readyCandidateCount: number;
+  selectedTableCount: number;
   plan: SmartPreview['plan'] & {
     sheets: Array<SmartPreview['plan']['sheets'][number] & { roleLabel: string }>;
-    tables: Array<SmartPreview['plan']['tables'][number] & {
-      headerRowLabel: number;
-      endRowLabel: number;
-      startColumnLabel: number;
-      endColumnLabel: number;
-      mappingSummary: string;
-      unresolvedCount: number;
-      mapping: Array<SmartPreview['plan']['tables'][number]['mapping'][number] & { choiceIndex: number; label: string }>;
-    }>;
+    tables: SmartTableView[];
+    selectedTables: SmartTableView[];
   };
 };
 
 function candidateView(candidate: SmartCandidate): SmartCandidateView {
   const values = candidate.values;
+  const needsReview = !candidate.confirmed && Boolean(candidate.warnings.length || candidate.confidence < 0.85);
   const sourceLabel = [
     candidate.source.sheet || candidate.source.file,
     candidate.source.row ? `第${candidate.source.row}行` : '',
@@ -57,32 +69,52 @@ function candidateView(candidate: SmartCandidate): SmartCandidateView {
     ...candidate,
     sourceLabel,
     summary: `${values['item.name'] || '名称缺失'} · ${values['batch.quantity'] || '数量缺失'}${values['item.unit'] || '个'} · ${values['batch.location'] || '位置未指定'}`,
-    reviewLabel: candidate.confirmed ? '已核对' : candidate.warnings.length || candidate.confidence < 0.85 ? '需要核对' : '可直接导入',
+    reviewLabel: candidate.confirmed ? '已核对' : needsReview ? '需要核对' : '可直接导入',
+    needsReview,
     editFields: editableFieldChoices.map(choice => ({ ...choice, value: values[choice.field] || '' })),
   };
 }
 
-function smartView(preview: SmartPreview): SmartView {
+function smartView(preview: SmartPreview, showAllCandidates = false): SmartView {
+  const candidates = preview.candidates.map(candidateView);
+  const reviewCandidates = candidates.filter(candidate => candidate.needsReview);
+  const tables: SmartTableView[] = preview.plan.tables.map(table => {
+    const recognizedFields = table.mapping.map(mapping => mapping.targetField);
+    const missingKeyFields = [
+      recognizedFields.includes('item.name') ? '' : '物品名称',
+      recognizedFields.includes('batch.quantity') ? '' : '数量',
+    ].filter(Boolean);
+    return {
+      ...table,
+      headerRowLabel: table.headerRow + 1,
+      endRowLabel: table.endRow + 1,
+      startColumnLabel: table.startColumn + 1,
+      endColumnLabel: table.endColumn + 1,
+      itemCount: Math.max(0, table.endRow - table.headerRow),
+      keyFieldStatus: missingKeyFields.length ? `需要指定${missingKeyFields.join('、')}` : '关键字段已识别',
+      unresolvedCount: table.mapping.filter(mapping => mapping.targetField === 'UNKNOWN').length,
+      mappingSummary: `${table.mapping.filter(mapping => mapping.targetField !== 'UNKNOWN' && mapping.targetField !== 'IGNORE').length} 列已识别 · ${table.mapping.filter(mapping => mapping.targetField === 'UNKNOWN').length} 列未使用`,
+      mapping: table.mapping.map(mapping => ({
+        ...mapping,
+        choiceIndex: Math.max(0, fieldChoices.findIndex(field => field.field === mapping.targetField)),
+        label: fieldChoices.find(field => field.field === mapping.targetField)?.label || '待指定',
+      })),
+    };
+  });
+  const selectedTables = tables.filter(table => table.selected);
   return {
     ...preview,
-    candidates: preview.candidates.map(candidateView),
+    candidates,
+    reviewCandidates,
+    displayCandidates: showAllCandidates ? candidates : reviewCandidates,
+    reviewCandidateCount: reviewCandidates.length,
+    readyCandidateCount: candidates.length - reviewCandidates.length,
+    selectedTableCount: selectedTables.length,
     plan: {
       ...preview.plan,
       sheets: preview.plan.sheets.map(sheet => ({ ...sheet, roleLabel: sheetRoleLabels[sheet.role] || '待判断' })),
-      tables: preview.plan.tables.map(table => ({
-        ...table,
-        headerRowLabel: table.headerRow + 1,
-        endRowLabel: table.endRow + 1,
-        startColumnLabel: table.startColumn + 1,
-        endColumnLabel: table.endColumn + 1,
-        unresolvedCount: table.mapping.filter(mapping => mapping.targetField === 'UNKNOWN').length,
-        mappingSummary: `${table.mapping.filter(mapping => mapping.targetField !== 'UNKNOWN' && mapping.targetField !== 'IGNORE').length} 列已识别 · ${table.mapping.filter(mapping => mapping.targetField === 'UNKNOWN').length} 列待指定`,
-        mapping: table.mapping.map(mapping => ({
-          ...mapping,
-          choiceIndex: Math.max(0, fieldChoices.findIndex(field => field.field === mapping.targetField)),
-          label: fieldChoices.find(field => field.field === mapping.targetField)?.label || '待指定',
-        })),
-      })),
+      tables,
+      selectedTables,
     },
   };
 }
@@ -111,6 +143,8 @@ interface DataManagementPageData {
   smartStep: 1 | 2 | 3;
   expandedTableId: string;
   smartCommitDisabled: boolean;
+  showSmartAdvanced: boolean;
+  showAllCandidates: boolean;
 }
 
 interface DataManagementPage {
@@ -195,7 +229,7 @@ async function validateSmartPage(page: DataManagementPage, nextStep?: 1 | 2 | 3)
       candidateEdits: page.data.candidateEdits,
     });
     page.setData({
-      smartPreview: smartView(updated),
+      smartPreview: smartView(updated, page.data.showAllCandidates),
       smartDirty: false,
       smartStep: nextStep || page.data.smartStep,
       smartCommitDisabled: Boolean(updated.errorRows || updated.needsConfirmation || !updated.validRows),
@@ -234,6 +268,8 @@ Page({
     smartStep: 1,
     expandedTableId: '',
     smartCommitDisabled: true,
+    showSmartAdvanced: false,
+    showAllCandidates: false,
   } as DataManagementPageData,
 
   onImportInput(this: DataManagementPage, event: { detail: { value: string } }) {
@@ -283,6 +319,8 @@ Page({
         smartStep: 1,
         expandedTableId: '',
         smartCommitDisabled: Boolean(preview.errorRows || preview.needsConfirmation || !preview.validRows),
+        showSmartAdvanced: false,
+        showAllCandidates: false,
       });
     } catch (error) { this.setData({ error: mapUserError(error) }); }
     finally { this.setData({ loading: false }); }
@@ -297,21 +335,27 @@ Page({
   onTableChange(this: DataManagementPage, event: { currentTarget: { dataset: { id: string } }; detail: { value: boolean } }) {
     const preview = this.data.smartPreview;
     const table = preview?.plan.tables.find(t => t.id === event.currentTarget.dataset.id);
-    if (table) table.selected = event.detail.value;
-    this.setData({ smartPreview: preview, smartDirty: true, smartCommitDisabled: true });
+    if (table) {
+      table.selected = event.detail.value;
+      if (event.detail.value) {
+        const sheet = preview?.plan.sheets.find(item => item.name === table.sheet);
+        if (sheet) sheet.selected = true;
+      }
+    }
+    this.setData({ smartPreview: preview ? smartView(preview, this.data.showAllCandidates) : null, smartDirty: true, smartCommitDisabled: true });
   },
   onMappingChange(this: DataManagementPage, event: { currentTarget: { dataset: { id: string; column: number } }; detail: { value: string } }) {
     const preview = this.data.smartPreview;
     const mapping = preview?.plan.tables.find(t => t.id === event.currentTarget.dataset.id)?.mapping.find(m => m.column === Number(event.currentTarget.dataset.column));
     const choice = fieldChoices[Number(event.detail.value)];
     if (mapping && choice) Object.assign(mapping, { targetField: choice.field, choiceIndex: Number(event.detail.value), label: choice.label, method: 'USER' });
-    this.setData({ smartPreview: preview, smartDirty: true, smartCommitDisabled: true });
+    this.setData({ smartPreview: preview ? smartView(preview, this.data.showAllCandidates) : null, smartDirty: true, smartCommitDisabled: true });
   },
   onHintInput(this: DataManagementPage, event: { currentTarget: { dataset: { id: string; field: 'categoryHint' | 'locationHint' } }; detail: { value: string } }) {
     const preview = this.data.smartPreview;
     const table = preview?.plan.tables.find(t => t.id === event.currentTarget.dataset.id);
     if (table) table[event.currentTarget.dataset.field] = event.detail.value;
-    this.setData({ smartPreview: preview, smartDirty: true, smartCommitDisabled: true });
+    this.setData({ smartPreview: preview ? smartView(preview, this.data.showAllCandidates) : null, smartDirty: true, smartCommitDisabled: true });
   },
   onRegionInput(this: DataManagementPage, event: { currentTarget: { dataset: { id: string; field: 'headerRow' | 'endRow' | 'startColumn' | 'endColumn' } }; detail: { value: string } }) {
     const preview = this.data.smartPreview;
@@ -319,7 +363,7 @@ Page({
     if (!table || !event.detail.value) return;
     table[event.currentTarget.dataset.field] = Number(event.detail.value) - 1;
     table.mapping.forEach(mapping => { mapping.method = 'UNRESOLVED'; });
-    this.setData({ smartPreview: preview, smartDirty: true, smartCommitDisabled: true });
+    this.setData({ smartPreview: preview ? smartView(preview, this.data.showAllCandidates) : null, smartDirty: true, smartCommitDisabled: true });
   },
   onCandidateInput(this: DataManagementPage, event: { currentTarget: { dataset: { id: string; field: string } }; detail: { value: string } }) {
     const edits = [...this.data.candidateEdits];
@@ -333,7 +377,7 @@ Page({
       candidate.values[event.currentTarget.dataset.field] = event.detail.value;
       candidate.confirmed = false;
     }
-    this.setData({ candidateEdits: edits, smartPreview: preview ? smartView(preview) : null, smartDirty: true, smartCommitDisabled: true });
+    this.setData({ candidateEdits: edits, smartPreview: preview ? smartView(preview, this.data.showAllCandidates) : null, smartDirty: true, smartCommitDisabled: true });
   },
   confirmCandidate(this: DataManagementPage, event: { currentTarget: { dataset: { id: string } }; detail: { value: boolean } }) {
     const edits = [...this.data.candidateEdits];
@@ -343,26 +387,41 @@ Page({
     const preview = this.data.smartPreview;
     const candidate = preview?.candidates.find(item => item.id === event.currentTarget.dataset.id);
     if (candidate) candidate.confirmed = event.detail.value;
-    this.setData({ candidateEdits: edits, smartPreview: preview ? smartView(preview) : null, smartDirty: true, smartCommitDisabled: true });
+    this.setData({ candidateEdits: edits, smartPreview: preview ? smartView(preview, this.data.showAllCandidates) : null, smartDirty: true, smartCommitDisabled: true });
   },
   addManualCandidate(this: DataManagementPage) {
     const preview = this.data.smartPreview;
     if (!preview) return;
     const candidate = { id: `manual:${Date.now()}`, values: {}, source: { file: '手动录入', sourceText: '' }, confidence: 1, warnings: ['用户手动录入'], confirmed: false };
     preview.candidates.push(candidate);
-    this.setData({ smartPreview: smartView(preview), candidateEdits: [...this.data.candidateEdits, { id: candidate.id, values: {}, confirmed: false }], editingCandidateId: candidate.id, smartDirty: true, smartCommitDisabled: true });
+    this.setData({ smartPreview: smartView(preview, this.data.showAllCandidates), candidateEdits: [...this.data.candidateEdits, { id: candidate.id, values: {}, confirmed: false }], editingCandidateId: candidate.id, smartDirty: true, smartCommitDisabled: true });
   },
   editCandidate(this: DataManagementPage, event: { currentTarget: { dataset: { id: string } } }) {
     this.setData({ editingCandidateId: this.data.editingCandidateId === event.currentTarget.dataset.id ? '' : event.currentTarget.dataset.id });
   },
   showSmartDialog(this: DataManagementPage) {
-    if (this.data.smartPreview) this.setData({ smartDialogOpen: true });
+    const preview = this.data.smartPreview;
+    if (preview) this.setData({ smartDialogOpen: true, smartPreview: smartView(preview), showAllCandidates: false });
   },
   closeSmartDialog(this: DataManagementPage) {
-    if (!this.data.loading) this.setData({ smartDialogOpen: false, editingCandidateId: '', expandedTableId: '' });
+    if (this.data.loading) return;
+    const preview = this.data.smartPreview;
+    this.setData({ smartDialogOpen: false, smartPreview: preview ? smartView(preview) : null, editingCandidateId: '', expandedTableId: '', showSmartAdvanced: false, showAllCandidates: false });
   },
   stopPropagation() {},
   preventTouchMove() {},
+  toggleSmartAdvanced(this: DataManagementPage) {
+    this.setData({ showSmartAdvanced: !this.data.showSmartAdvanced, expandedTableId: '' });
+  },
+  toggleAllCandidates(this: DataManagementPage) {
+    const preview = this.data.smartPreview;
+    if (!preview) return;
+    const showAllCandidates = !this.data.showAllCandidates;
+    this.setData({
+      showAllCandidates,
+      smartPreview: { ...preview, displayCandidates: showAllCandidates ? preview.candidates : preview.reviewCandidates },
+    });
+  },
   toggleTableDetails(this: DataManagementPage, event: { currentTarget: { dataset: { id: string } } }) {
     const id = event.currentTarget.dataset.id;
     this.setData({ expandedTableId: this.data.expandedTableId === id ? '' : id });
@@ -388,7 +447,7 @@ Page({
       } else edit.confirmed = true;
       candidate.confirmed = true;
     }
-    this.setData({ candidateEdits: edits, smartPreview: smartView(preview), smartDirty: true, smartCommitDisabled: true });
+    this.setData({ candidateEdits: edits, smartPreview: smartView(preview, this.data.showAllCandidates), smartDirty: true, smartCommitDisabled: true });
   },
   async revalidateSmart(this: DataManagementPage) {
     await validateSmartPage(this);

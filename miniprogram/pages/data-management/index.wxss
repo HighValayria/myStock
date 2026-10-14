@@ -40,7 +40,7 @@
 .smart-steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border-bottom: 1rpx solid #eaecf0; background: #f9fafb; }
 .smart-step { min-width: 0; padding: 17rpx 8rpx 14rpx; border-bottom: 4rpx solid transparent; color: #667085; text-align: center; font-size: 22rpx; white-space: nowrap; }
 .smart-step.active { border-bottom-color: #2563eb; color: #1d4ed8; font-weight: 700; }
-.smart-dialog-body { flex: 1; min-height: 0; height: 920rpx; box-sizing: border-box; padding: 22rpx 24rpx 32rpx; }
+.smart-dialog-body { flex: none; width: 100%; height: 60vh; box-sizing: border-box; padding: 22rpx 24rpx 32rpx; }
 .smart-loading { margin-bottom: 18rpx; padding: 14rpx 16rpx; border-radius: 8rpx; background: #eff6ff; color: #1d4ed8; font-size: 24rpx; }
 .smart-intro { margin-bottom: 22rpx; padding: 18rpx; border-left: 6rpx solid #2563eb; background: #eff6ff; color: #475467; font-size: 24rpx; line-height: 1.55; }
 .smart-intro-title { margin-bottom: 4rpx; color: #1f2933; font-size: 28rpx; font-weight: 700; }
@@ -48,14 +48,24 @@
 .smart-intro-row > view { min-width: 0; flex: 1; }
 .smart-intro-row button { margin: 0; flex-shrink: 0; }
 .smart-group-title { margin: 24rpx 0 8rpx; color: #344054; font-size: 27rpx; font-weight: 700; }
+.smart-found-summary { display: flex; align-items: center; gap: 18rpx; padding: 20rpx; border: 1rpx solid #bfdbfe; border-radius: 8rpx; background: #f8fbff; }
+.smart-found-summary > text { flex-shrink: 0; color: #1d4ed8; font-size: 46rpx; line-height: 1; font-weight: 700; }
+.smart-found-summary > view { min-width: 0; }
 .smart-list-row { display: flex; align-items: center; justify-content: space-between; gap: 20rpx; padding: 18rpx 0; border-bottom: 1rpx solid #eaecf0; }
 .smart-list-content { min-width: 0; flex: 1; }
 .smart-row-title { color: #1f2933; font-size: 27rpx; line-height: 1.45; font-weight: 600; overflow-wrap: anywhere; }
 .smart-row-meta { margin-top: 5rpx; color: #667085; font-size: 22rpx; line-height: 1.45; overflow-wrap: anywhere; }
 .smart-table { padding-bottom: 18rpx; border-bottom: 1rpx solid #d0d5dd; }
 .smart-table .smart-list-row { border-bottom: 0; }
+.smart-inventory-list { border-bottom: 1rpx solid #eaecf0; }
+.smart-inventory-list .smart-list-row { border-bottom: 0; }
 .smart-warning { margin: 10rpx 0; color: #b54708; font-size: 23rpx; line-height: 1.5; }
 .smart-error { margin: 10rpx 0; color: #b42318; font-size: 23rpx; line-height: 1.5; }
+.smart-warning-block { margin-top: 12rpx; padding: 16rpx; border-radius: 8rpx; background: #fff4e5; color: #b54708; font-size: 24rpx; line-height: 1.5; }
+.smart-success-block { margin: 14rpx 0; padding: 16rpx; border-radius: 8rpx; background: #ecfdf3; color: #027a48; font-size: 24rpx; line-height: 1.5; }
+.smart-advanced-toggle { margin: 20rpx 0 4rpx; padding: 0; border: 0; background: transparent; color: #2563eb; font-size: 24rpx; }
+.smart-advanced-toggle::after { border: 0; }
+.smart-advanced-panel { margin-top: 16rpx; padding: 18rpx; border: 1rpx solid #d0d5dd; border-radius: 8rpx; background: #f9fafb; }
 .smart-text-button { margin: 6rpx 0 0; padding: 0 12rpx; border: 0; background: transparent; color: #2563eb; font-size: 23rpx; }
 .smart-text-button::after { border: 0; }
 .smart-advanced { margin-top: 14rpx; padding: 18rpx; border: 1rpx solid #d0d5dd; border-radius: 8rpx; background: #f9fafb; }
@@ -66,6 +76,12 @@
 .smart-range-field input { width: 100%; box-sizing: border-box; padding: 12rpx; border: 1rpx solid #d0d5dd; border-radius: 6rpx; background: #fff; font-size: 24rpx; }
 
 .candidate-row { padding: 22rpx 0; }
+.smart-review-summary { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12rpx; margin-bottom: 18rpx; }
+.smart-review-summary > view { min-width: 0; padding: 18rpx 10rpx; border: 1rpx solid #d0d5dd; border-radius: 8rpx; color: #667085; text-align: center; font-size: 22rpx; }
+.smart-review-summary text { display: block; margin-bottom: 4rpx; color: #1f2933; font-size: 34rpx; font-weight: 700; }
+.smart-review-heading { display: flex; align-items: center; justify-content: space-between; gap: 16rpx; margin-top: 20rpx; }
+.smart-review-heading > view { min-width: 0; flex: 1; }
+.smart-review-heading button { margin: 0; flex-shrink: 0; }
 .candidate-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16rpx; }
 .candidate-heading > view:first-child { min-width: 0; flex: 1; }
 .review-badge { flex-shrink: 0; padding: 6rpx 10rpx; border-radius: 6rpx; background: #fff4e5; color: #b54708; font-size: 21rpx; }
