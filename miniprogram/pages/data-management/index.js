@@ -30,6 +30,7 @@ function candidateView(candidate) {
         ...candidate,
         sourceLabel,
         summary: `${values['item.name'] || '名称缺失'} · ${values['batch.quantity'] || '数量缺失'}${values['item.unit'] || '个'} · ${values['batch.location'] || '位置未指定'}`,
+        reviewLabel: candidate.confirmed ? '已核对' : candidate.warnings.length || candidate.confidence < 0.85 ? '需要核对' : '可直接导入',
         editFields: editableFieldChoices.map(choice => ({ ...choice, value: values[choice.field] || '' })),
     };
 }
@@ -46,6 +47,8 @@ function smartView(preview) {
                 endRowLabel: table.endRow + 1,
                 startColumnLabel: table.startColumn + 1,
                 endColumnLabel: table.endColumn + 1,
+                unresolvedCount: table.mapping.filter(mapping => mapping.targetField === 'UNKNOWN').length,
+                mappingSummary: `${table.mapping.filter(mapping => mapping.targetField !== 'UNKNOWN' && mapping.targetField !== 'IGNORE').length} 列已识别 · ${table.mapping.filter(mapping => mapping.targetField === 'UNKNOWN').length} 列待指定`,
                 mapping: table.mapping.map(mapping => ({
                     ...mapping,
                     choiceIndex: Math.max(0, fieldChoices.findIndex(field => field.field === mapping.targetField)),
@@ -93,6 +96,47 @@ function parseJson(text) {
 function isXlsxFile(name, base64) {
     return /\.(xlsx|xls)$/i.test(name) || base64.startsWith('UEs');
 }
+async function validateSmartPage(page, nextStep) {
+    const preview = page.data.smartPreview;
+    if (!preview || page.data.loading)
+        return false;
+    page.setData({ loading: true, error: '' });
+    try {
+        const updated = await getPhase2Service().previewSmartImport({
+            jobId: preview.jobId,
+            revision: preview.revision,
+            changes: {
+                sheets: preview.plan.sheets.map(sheet => ({ index: sheet.index, selected: sheet.selected })),
+                tables: preview.plan.tables.map(table => ({
+                    id: table.id,
+                    headerRow: table.headerRow,
+                    endRow: table.endRow,
+                    startColumn: table.startColumn,
+                    endColumn: table.endColumn,
+                    selected: table.selected,
+                    categoryHint: table.categoryHint || '',
+                    locationHint: table.locationHint || '',
+                    mapping: table.mapping.filter(mapping => mapping.method === 'USER').map(mapping => ({ column: mapping.column, targetField: mapping.targetField })),
+                })),
+            },
+            candidateEdits: page.data.candidateEdits,
+        });
+        page.setData({
+            smartPreview: smartView(updated),
+            smartDirty: false,
+            smartStep: nextStep || page.data.smartStep,
+            smartCommitDisabled: Boolean(updated.errorRows || updated.needsConfirmation || !updated.validRows),
+        });
+        return true;
+    }
+    catch (error) {
+        page.setData({ error: (0, phase2_form_1.mapUserError)(error) });
+        return false;
+    }
+    finally {
+        page.setData({ loading: false });
+    }
+}
 Page({
     data: {
         loading: false,
@@ -114,6 +158,10 @@ Page({
         candidateEdits: [],
         smartDirty: false,
         editingCandidateId: '',
+        smartDialogOpen: false,
+        smartStep: 1,
+        expandedTableId: '',
+        smartCommitDisabled: true,
     },
     onImportInput(event) {
         this.setData({ importText: event.detail.value, importFileName: '', importFileBase64: '', importPreview: null, importResult: null, error: '', smartPreview: null, candidateEdits: [], importOperationId: '' });
@@ -160,7 +208,14 @@ Page({
         this.setData({ loading: true, error: '', smartPreview: null, importResult: null, candidateEdits: [] });
         try {
             const preview = await getPhase2Service().previewSmartImport({ text: this.data.importText, fileBase64: this.data.importFileBase64, fileName: this.data.importFileName, sourceType: this.data.smartMode === 'text' ? 'text' : undefined, allowAI: this.data.allowAI || this.data.smartMode === 'text' });
-            this.setData({ smartPreview: smartView(preview), smartDirty: false });
+            this.setData({
+                smartPreview: smartView(preview),
+                smartDirty: false,
+                smartDialogOpen: true,
+                smartStep: 1,
+                expandedTableId: '',
+                smartCommitDisabled: Boolean(preview.errorRows || preview.needsConfirmation || !preview.validRows),
+            });
         }
         catch (error) {
             this.setData({ error: (0, phase2_form_1.mapUserError)(error) });
@@ -176,14 +231,14 @@ Page({
         const sheet = preview.plan.sheets.find(s => s.index === Number(event.currentTarget.dataset.index));
         if (sheet)
             sheet.selected = event.detail.value;
-        this.setData({ smartPreview: preview, smartDirty: true });
+        this.setData({ smartPreview: preview, smartDirty: true, smartCommitDisabled: true });
     },
     onTableChange(event) {
         const preview = this.data.smartPreview;
         const table = preview?.plan.tables.find(t => t.id === event.currentTarget.dataset.id);
         if (table)
             table.selected = event.detail.value;
-        this.setData({ smartPreview: preview, smartDirty: true });
+        this.setData({ smartPreview: preview, smartDirty: true, smartCommitDisabled: true });
     },
     onMappingChange(event) {
         const preview = this.data.smartPreview;
@@ -191,14 +246,14 @@ Page({
         const choice = fieldChoices[Number(event.detail.value)];
         if (mapping && choice)
             Object.assign(mapping, { targetField: choice.field, choiceIndex: Number(event.detail.value), label: choice.label, method: 'USER' });
-        this.setData({ smartPreview: preview, smartDirty: true });
+        this.setData({ smartPreview: preview, smartDirty: true, smartCommitDisabled: true });
     },
     onHintInput(event) {
         const preview = this.data.smartPreview;
         const table = preview?.plan.tables.find(t => t.id === event.currentTarget.dataset.id);
         if (table)
             table[event.currentTarget.dataset.field] = event.detail.value;
-        this.setData({ smartPreview: preview, smartDirty: true });
+        this.setData({ smartPreview: preview, smartDirty: true, smartCommitDisabled: true });
     },
     onRegionInput(event) {
         const preview = this.data.smartPreview;
@@ -207,7 +262,7 @@ Page({
             return;
         table[event.currentTarget.dataset.field] = Number(event.detail.value) - 1;
         table.mapping.forEach(mapping => { mapping.method = 'UNRESOLVED'; });
-        this.setData({ smartPreview: preview, smartDirty: true });
+        this.setData({ smartPreview: preview, smartDirty: true, smartCommitDisabled: true });
     },
     onCandidateInput(event) {
         const edits = [...this.data.candidateEdits];
@@ -224,7 +279,7 @@ Page({
             candidate.values[event.currentTarget.dataset.field] = event.detail.value;
             candidate.confirmed = false;
         }
-        this.setData({ candidateEdits: edits, smartPreview: preview ? smartView(preview) : null, smartDirty: true });
+        this.setData({ candidateEdits: edits, smartPreview: preview ? smartView(preview) : null, smartDirty: true, smartCommitDisabled: true });
     },
     confirmCandidate(event) {
         const edits = [...this.data.candidateEdits];
@@ -238,7 +293,7 @@ Page({
         const candidate = preview?.candidates.find(item => item.id === event.currentTarget.dataset.id);
         if (candidate)
             candidate.confirmed = event.detail.value;
-        this.setData({ candidateEdits: edits, smartPreview: preview, smartDirty: true });
+        this.setData({ candidateEdits: edits, smartPreview: preview ? smartView(preview) : null, smartDirty: true, smartCommitDisabled: true });
     },
     addManualCandidate() {
         const preview = this.data.smartPreview;
@@ -246,26 +301,55 @@ Page({
             return;
         const candidate = { id: `manual:${Date.now()}`, values: {}, source: { file: '手动录入', sourceText: '' }, confidence: 1, warnings: ['用户手动录入'], confirmed: false };
         preview.candidates.push(candidate);
-        this.setData({ smartPreview: smartView(preview), candidateEdits: [...this.data.candidateEdits, { id: candidate.id, values: {}, confirmed: false }], editingCandidateId: candidate.id, smartDirty: true });
+        this.setData({ smartPreview: smartView(preview), candidateEdits: [...this.data.candidateEdits, { id: candidate.id, values: {}, confirmed: false }], editingCandidateId: candidate.id, smartDirty: true, smartCommitDisabled: true });
     },
     editCandidate(event) {
         this.setData({ editingCandidateId: this.data.editingCandidateId === event.currentTarget.dataset.id ? '' : event.currentTarget.dataset.id });
     },
-    async revalidateSmart() {
-        const preview = this.data.smartPreview;
-        if (!preview || this.data.loading)
+    showSmartDialog() {
+        if (this.data.smartPreview)
+            this.setData({ smartDialogOpen: true });
+    },
+    closeSmartDialog() {
+        if (!this.data.loading)
+            this.setData({ smartDialogOpen: false, editingCandidateId: '', expandedTableId: '' });
+    },
+    stopPropagation() { },
+    preventTouchMove() { },
+    toggleTableDetails(event) {
+        const id = event.currentTarget.dataset.id;
+        this.setData({ expandedTableId: this.data.expandedTableId === id ? '' : id });
+    },
+    async goSmartStep(event) {
+        const step = Number(event.currentTarget.dataset.step);
+        if (step < this.data.smartStep) {
+            this.setData({ smartStep: step });
             return;
-        this.setData({ loading: true, error: '' });
-        try {
-            const updated = await getPhase2Service().previewSmartImport({ jobId: preview.jobId, revision: preview.revision, changes: { sheets: preview.plan.sheets.map(s => ({ index: s.index, selected: s.selected })), tables: preview.plan.tables.map(t => ({ id: t.id, headerRow: t.headerRow, endRow: t.endRow, startColumn: t.startColumn, endColumn: t.endColumn, selected: t.selected, categoryHint: t.categoryHint || '', locationHint: t.locationHint || '', mapping: t.mapping.filter(m => m.method === 'USER').map(m => ({ column: m.column, targetField: m.targetField })) })) }, candidateEdits: this.data.candidateEdits });
-            this.setData({ smartPreview: smartView(updated), smartDirty: false });
         }
-        catch (error) {
-            this.setData({ error: (0, phase2_form_1.mapUserError)(error) });
+        if (this.data.smartDirty)
+            await validateSmartPage(this, step);
+        else
+            this.setData({ smartStep: step });
+    },
+    confirmAllCandidates() {
+        const preview = this.data.smartPreview;
+        if (!preview)
+            return;
+        const edits = [...this.data.candidateEdits];
+        for (const candidate of preview.candidates) {
+            let edit = edits.find(item => item.id === candidate.id);
+            if (!edit) {
+                edit = { id: candidate.id, values: {}, confirmed: true };
+                edits.push(edit);
+            }
+            else
+                edit.confirmed = true;
+            candidate.confirmed = true;
         }
-        finally {
-            this.setData({ loading: false });
-        }
+        this.setData({ candidateEdits: edits, smartPreview: smartView(preview), smartDirty: true, smartCommitDisabled: true });
+    },
+    async revalidateSmart() {
+        await validateSmartPage(this);
     },
     async commitSmart() {
         const preview = this.data.smartPreview;
@@ -280,7 +364,7 @@ Page({
         this.setData({ loading: true, error: '' });
         try {
             const result = await getPhase2Service().commitSmartImport(preview.jobId, preview.revision);
-            this.setData({ importResult: result });
+            this.setData({ importResult: result, smartDialogOpen: false });
             wx.showToast({ title: result.failedRows.length ? '部分导入失败，可重试' : '导入完成', icon: 'none' });
         }
         catch (error) {
