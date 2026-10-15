@@ -92,7 +92,8 @@
       </view>
 
       <scroll-view class="smart-dialog-body" scroll-y show-scrollbar="{{false}}">
-        <view wx:if="{{loading}}" class="smart-loading">正在重新分析，请稍候...</view>
+        <view wx:if="{{loading || smartCommitProgress}}" class="smart-loading">{{smartCommitProgress || '正在重新分析，请稍候...'}}</view>
+        <view wx:if="{{error}}" class="smart-dialog-error">{{error}}</view>
 
         <view wx:if="{{smartStep === 1}}">
           <view class="smart-intro">
@@ -268,7 +269,7 @@
         <button wx:if="{{smartStep === 2}}" size="mini" type="primary" data-step="3" bindtap="goSmartStep" disabled="{{loading}}">下一步：确认</button>
         <button wx:if="{{smartStep === 3}}" size="mini" data-step="2" bindtap="goSmartStep" disabled="{{loading}}">上一步</button>
         <button wx:if="{{smartStep === 3}}" size="mini" bindtap="revalidateSmart" disabled="{{loading}}">重新校验</button>
-        <button wx:if="{{smartStep === 3}}" size="mini" type="primary" bindtap="commitSmart" disabled="{{smartCommitDisabled}}">确认导入</button>
+        <button wx:if="{{smartStep === 3}}" size="mini" type="primary" bindtap="commitSmart" disabled="{{smartCommitDisabled || loading}}">确认导入</button>
       </view>
     </view>
   </view>

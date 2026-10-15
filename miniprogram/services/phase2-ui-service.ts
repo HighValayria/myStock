@@ -191,13 +191,18 @@ export interface SmartImportPreview extends Phase6ImportPreview {
 export async function previewSmartImport(payload: Record<string, unknown>): Promise<SmartImportPreview> {
   return callCloudFunction<SmartImportPreview>('dataManage', 'previewSmartImport', payload);
 }
-export async function commitSmartImport(jobId: string, revision: number): Promise<Phase6ImportResult> {
+export interface Phase6CommitProgress extends Phase6ImportResult {
+  processedRows: number;
+  totalRows: number;
+}
+export async function commitSmartImport(jobId: string, revision: number, onProgress?: (progress: Phase6CommitProgress) => void): Promise<Phase6ImportResult> {
   const total: Phase6ImportResult = { importOperationId: jobId, successRows: 0, skippedRows: 0, createdItems: 0, addedBatches: 0, mergedBatches: 0, failedRows: [] };
   let offset: number | null = 0;
   while (offset !== null) {
-    const result: Phase6ImportResult & { nextOffset: number | null } = await callCloudFunction('dataManage', 'commitSmartImport', { jobId, revision, confirmed: true, offset });
+    const result: Phase6ImportResult & { processedRows: number; totalRows: number; nextOffset: number | null } = await callCloudFunction('dataManage', 'commitSmartImport', { jobId, revision, confirmed: true, offset });
     for (const field of ['successRows', 'skippedRows', 'createdItems', 'addedBatches', 'mergedBatches'] as const) total[field] += result[field];
     total.failedRows.push(...result.failedRows);
+    onProgress?.({ ...total, processedRows: result.processedRows, totalRows: result.totalRows });
     offset = result.nextOffset;
   }
   return total;

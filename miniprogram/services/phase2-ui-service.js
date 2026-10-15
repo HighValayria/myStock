@@ -35,7 +35,7 @@ const inventory_mutation_client_1 = require("./inventory-mutation-client");
 async function previewSmartImport(payload) {
     return callCloudFunction('dataManage', 'previewSmartImport', payload);
 }
-async function commitSmartImport(jobId, revision) {
+async function commitSmartImport(jobId, revision, onProgress) {
     const total = { importOperationId: jobId, successRows: 0, skippedRows: 0, createdItems: 0, addedBatches: 0, mergedBatches: 0, failedRows: [] };
     let offset = 0;
     while (offset !== null) {
@@ -43,6 +43,7 @@ async function commitSmartImport(jobId, revision) {
         for (const field of ['successRows', 'skippedRows', 'createdItems', 'addedBatches', 'mergedBatches'])
             total[field] += result[field];
         total.failedRows.push(...result.failedRows);
+        onProgress?.({ ...total, processedRows: result.processedRows, totalRows: result.totalRows });
         offset = result.nextOffset;
     }
     return total;

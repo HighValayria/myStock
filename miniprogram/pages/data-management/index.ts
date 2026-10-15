@@ -197,6 +197,7 @@ interface DataManagementPageData {
   smartCommitDisabled: boolean;
   showSmartAdvanced: boolean;
   showAllCandidates: boolean;
+  smartCommitProgress: string;
 }
 
 interface DataManagementPage {
@@ -338,10 +339,11 @@ Page({
     smartCommitDisabled: true,
     showSmartAdvanced: false,
     showAllCandidates: false,
+    smartCommitProgress: '',
   } as DataManagementPageData,
 
   onImportInput(this: DataManagementPage, event: { detail: { value: string } }) {
-    this.setData({ importText: event.detail.value, importFileName: '', importFileBase64: '', importPreview: null, importResult: null, error: '', smartPreview: null, candidateEdits: [], importOperationId: '' });
+    this.setData({ importText: event.detail.value, importFileName: '', importFileBase64: '', importPreview: null, importResult: null, error: '', smartPreview: null, candidateEdits: [], importOperationId: '', smartCommitProgress: '' });
   },
 
   onRestoreInput(this: DataManagementPage, event: { detail: { value: string } }) {
@@ -361,11 +363,12 @@ Page({
       smartPreview: null,
       candidateEdits: [],
       importOperationId: '',
+      smartCommitProgress: '',
     });
   },
 
   setSmartMode(this: DataManagementPage, event: { currentTarget: { dataset: { mode: 'file' | 'text' } } }) {
-    this.setData({ smartMode: event.currentTarget.dataset.mode, smartPreview: null, candidateEdits: [], importResult: null });
+    this.setData({ smartMode: event.currentTarget.dataset.mode, smartPreview: null, candidateEdits: [], importResult: null, smartCommitProgress: '' });
   },
   onAIChange(this: DataManagementPage, event: { detail: { value: boolean } }) {
     this.setData({ allowAI: event.detail.value });
@@ -377,7 +380,7 @@ Page({
     if (this.data.loading) return;
     if (!this.data.importText.trim() && !this.data.importFileBase64) { wx.showToast({ title: '请先选择文件或输入文本', icon: 'none' }); return; }
     if (this.data.smartMode === 'text' && this.data.importFileBase64) { wx.showToast({ title: '请切换文件导入', icon: 'none' }); return; }
-    this.setData({ loading: true, error: '', smartPreview: null, importResult: null, candidateEdits: [] });
+    this.setData({ loading: true, error: '', smartPreview: null, importResult: null, candidateEdits: [], smartCommitProgress: '' });
     try {
       const preview = await getPhase2Service().previewSmartImport({ text: this.data.importText, fileBase64: this.data.importFileBase64, fileName: this.data.importFileName, sourceType: this.data.smartMode === 'text' ? 'text' : undefined, allowAI: this.data.allowAI || this.data.smartMode === 'text' });
       this.setData({
@@ -574,12 +577,24 @@ Page({
     if (!preview || this.data.loading) return;
     if (this.data.smartDirty || preview.errorRows || preview.needsConfirmation || !preview.validRows) { wx.showToast({ title: '请校验并核对候选记录', icon: 'none' }); return; }
     if (!await modal('确认导入', `将导入 ${preview.validRows} 条库存，并生成入库流水。`)) return;
-    this.setData({ loading: true, error: '' });
+    this.setData({ loading: true, error: '', smartCommitProgress: `正在导入 0/${preview.validRows}，请勿关闭页面` });
     try {
-      const result = await getPhase2Service().commitSmartImport(preview.jobId, preview.revision);
-      this.setData({ importResult: result, smartDialogOpen: false });
+      const result = await getPhase2Service().commitSmartImport(preview.jobId, preview.revision, progress => {
+        this.setData({ smartCommitProgress: `正在导入 ${progress.processedRows}/${progress.totalRows}，请勿关闭页面` });
+      });
+      this.setData({ importResult: result, smartDialogOpen: false, smartCommitProgress: '' });
       wx.showToast({ title: result.failedRows.length ? '部分导入失败，可重试' : '导入完成', icon: 'none' });
-    } catch (error) { this.setData({ error: mapUserError(error) }); }
+    } catch (error) {
+      const message = mapUserError(error);
+      this.setData({ error: message, smartCommitProgress: '导入中断，再次点击“确认导入”可安全继续' });
+      await new Promise<void>(resolve => wx.showModal({
+        title: '导入未完成',
+        content: `${message}\n已成功的记录不会重复入库，可直接重试。`,
+        showCancel: false,
+        success: () => resolve(),
+        fail: () => resolve(),
+      }));
+    }
     finally { this.setData({ loading: false }); }
   },
 

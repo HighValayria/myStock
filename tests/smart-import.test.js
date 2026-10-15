@@ -176,12 +176,24 @@ test("T-P6B-A24 relative dates have a deterministic anchor", async () => {
   assert.equal(job.plan.textCandidates[0].values["batch.purchaseDate"], "2026-10-08");
 });
 test("T-P6B-A25 all chunked rows preserve stable retry IDs", async () => {
-  const text = "物品名称,数量,单位\n" + Array.from({ length: 21 }, (_, index) => `分页物品${index},1,个`).join("\n");
+  const text = "物品名称,数量,单位\n" + Array.from({ length: 104 }, (_, index) => `分页物品${index},1,个`).join("\n");
   const result = await harness.main({ action: "previewSmartImport", payload: { text } }); assert(result.ok);
   const payload = { jobId: result.data.jobId, revision: 1, confirmed: true };
-  const first = await harness.main({ action: "commitSmartImport", payload }); assert.equal(first.data.successRows, 20); assert.equal(first.data.nextOffset, 20);
-  const last = await harness.main({ action: "commitSmartImport", payload: { ...payload, offset: first.data.nextOffset } }); assert.equal(last.data.successRows, 1); assert.equal(last.data.nextOffset, null);
-  const retry = await harness.main({ action: "commitSmartImport", payload }); assert.equal(retry.data.skippedRows, 20);
+  let offset = 0;
+  let successRows = 0;
+  let calls = 0;
+  while (offset !== null) {
+    const page = await harness.main({ action: "commitSmartImport", payload: { ...payload, offset } });
+    assert(page.ok, JSON.stringify(page));
+    successRows += page.data.successRows;
+    calls += 1;
+    assert.equal(page.data.totalRows, 104);
+    assert.equal(page.data.processedRows, Math.min(offset + 5, 104));
+    offset = page.data.nextOffset;
+  }
+  assert.equal(successRows, 104);
+  assert.equal(calls, 21);
+  const retry = await harness.main({ action: "commitSmartImport", payload }); assert.equal(retry.data.skippedRows, 5);
 });
 test("T-P6B-A26 manual header correction keeps original data", async () => {
   const job = await createImportPlan({ text: "更新时间,2026-10-10\n东西,数量,单位\n纸巾,3,包" });

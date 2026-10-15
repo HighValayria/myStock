@@ -26,6 +26,7 @@ const EXCEL_HEADERS = ["物品名称", "类别", "品牌", "规格", "数量", "
 const EXCEL_EXPORT_HEADERS = [...EXCEL_HEADERS, "剩余天数", "保质期状态", "库存状态"];
 const FIELD_ALIASES = { 名称: "物品名称", 库存数量: "数量", 单价: "单位购买价格", 购买价格: "单位购买价格", 位置: "存放位置" };
 const PAGE_SIZE = 100;
+const SMART_COMMIT_CHUNK_SIZE = 5;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 function ok(data) { return { ok: true, data }; }
@@ -418,14 +419,15 @@ async function commitSmartImport(openid, payload) {
   const result = { importOperationId: job._id, successRows: 0, skippedRows: 0, createdItems: 0, addedBatches: 0, mergedBatches: 0, failedRows: [] };
   const offset = payload.offset ?? 0;
   if (!Number.isInteger(offset) || offset < 0 || offset > job.preview.rows.length) throw dataError("VALIDATION_ERROR", "导入分页无效");
-  for (const row of job.preview.rows.slice(offset, offset + 20)) {
+  for (const row of job.preview.rows.slice(offset, offset + SMART_COMMIT_CHUNK_SIZE)) {
     try {
       const done = await executeCandidateRow(openid, row, job._id);
       if (done.skipped) result.skippedRows++;
       else { result.successRows++; if (done.itemCreated) result.createdItems++; if (done.merged) result.mergedBatches++; else result.addedBatches++; }
     } catch (error) { result.failedRows.push({ rowNumber: row.rowNumber, message: error.message }); }
   }
-  return { ...result, nextOffset: offset + 20 < job.preview.rows.length ? offset + 20 : null };
+  const processedRows = Math.min(offset + SMART_COMMIT_CHUNK_SIZE, job.preview.rows.length);
+  return { ...result, processedRows, totalRows: job.preview.rows.length, nextOffset: processedRows < job.preview.rows.length ? processedRows : null };
 }
 async function exportBackup(openid) {
   const snapshot = await allUserData(openid);
