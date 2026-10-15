@@ -32,9 +32,10 @@ function ok(data) { return { ok: true, data }; }
 function fail(error) {
   return { ok: false, error: { code: error.code || "DATA_MANAGE_FAILED", message: error.message || String(error) } };
 }
-function dataError(code, message) {
+function dataError(code, message, details = {}) {
   const error = new Error(message);
   error.code = code;
+  Object.assign(error, details);
   return error;
 }
 function now() { return Date.now(); }
@@ -42,15 +43,24 @@ function createId(prefix) { return `${prefix}_${Date.now().toString(36)}_${Math.
 function normalizeText(value) { return String(value == null ? "" : value).trim(); }
 function normalizeHeader(value) { const text = normalizeText(value); return FIELD_ALIASES[text] || text; }
 function assertPositive(value, label) {
-  const numeric = Number(normalizeText(value));
-  if (!Number.isFinite(numeric) || numeric <= 0) throw dataError("VALIDATION_ERROR", `${label}必须大于0`);
+  const raw = normalizeText(value);
+  const sumParts = /^\d+(?:\s*\+\s*\d+)+$/.test(raw) ? raw.split("+").map(part => Number(part.trim())) : null;
+  if (sumParts) {
+    const suggestedValue = sumParts.reduce((total, part) => total + part, 0);
+    throw dataError("VALIDATION_ERROR", `${label}不是单一数字，可自动计算为${suggestedValue}`, { issueType: "QUANTITY_SUM", suggestedValue: String(suggestedValue) });
+  }
+  const numeric = Number(raw);
+  if (!raw || !Number.isFinite(numeric)) throw dataError("VALIDATION_ERROR", `${label}必须大于0`, { issueType: "QUANTITY_DEFAULT_ONE" });
+  if (numeric === 0) throw dataError("VALIDATION_ERROR", `${label}必须大于0`, { issueType: "QUANTITY_ZERO" });
+  if (numeric < 0) throw dataError("VALIDATION_ERROR", `${label}必须大于0`, { issueType: "QUANTITY_INVALID" });
   return numeric;
 }
 function optionalNumber(value, label, options = {}) {
   if (normalizeText(value) === "") return null;
   const numeric = Number(normalizeText(value));
-  if (!Number.isFinite(numeric)) throw dataError("VALIDATION_ERROR", `${label}必须是数字`);
-  if (options.min != null && numeric < options.min) throw dataError("VALIDATION_ERROR", `${label}不能小于${options.min}`);
+  const details = options.issueField ? { issueType: "OPTIONAL_NUMBER_INVALID", issueField: options.issueField } : {};
+  if (!Number.isFinite(numeric)) throw dataError("VALIDATION_ERROR", `${label}必须是数字`, details);
+  if (options.min != null && numeric < options.min) throw dataError("VALIDATION_ERROR", `${label}不能小于${options.min}`, details);
   return options.integer ? Math.trunc(numeric) : numeric;
 }
 function normalizeDate(value, label) {
@@ -111,7 +121,7 @@ function resolveExpiry(values) {
   const unit = shelfLifeUnit(values["保质期单位"]);
   const manual = normalizeDate(values["到期日期"], "到期日期");
   const calculated = calculateExpiry(productionDate, shelfLifeValue, shelfLifeValue == null ? null : unit);
-  if (manual && calculated && manual !== calculated) throw dataError("VALIDATION_ERROR", "生产日期 + 保质期与到期日期冲突");
+  if (manual && calculated && manual !== calculated) throw dataError("VALIDATION_ERROR", "生产日期 + 保质期与到期日期冲突", { issueType: "EXPIRY_CONFLICT" });
   if (manual) return { productionDate, shelfLifeValue, shelfLifeUnit: shelfLifeValue == null ? null : unit, expiryDate: manual };
   if (calculated) return { productionDate, shelfLifeValue, shelfLifeUnit: unit, expiryDate: calculated };
   return { productionDate, shelfLifeValue, shelfLifeUnit: shelfLifeValue == null ? null : unit, expiryDate: UNKNOWN_EXPIRY_DATE };
@@ -241,9 +251,9 @@ function previewRows(rows, unknownFields, snapshot, importOperationId) {
       const specification = normalizeText(v["规格"]);
       const purchaseDate = normalizeDate(v["购买日期"], "购买日期");
       const expiry = resolveExpiry(v);
-      const purchasePrice = optionalNumber(v["单位购买价格"], "单位购买价格", { min: 0 });
-      const lowStockThreshold = optionalNumber(v["低库存阈值"], "低库存阈值", { min: 0 });
-      const expiryWarningDays = optionalNumber(v["临期阈值"], "临期阈值", { integer: true, min: 0 });
+      const purchasePrice = optionalNumber(v["单位购买价格"], "单位购买价格", { min: 0, issueField: "batch.purchasePrice" });
+      const lowStockThreshold = optionalNumber(v["低库存阈值"], "低库存阈值", { min: 0, issueField: "item.lowStockThreshold" });
+      const expiryWarningDays = optionalNumber(v["临期阈值"], "临期阈值", { integer: true, min: 0, issueField: "item.expiryWarningDays" });
       const key = itemKey({ name, brand, specification, unit });
       const existingItem = itemByKey.get(key);
       if (!existingItem) newItemKeys.add(key);
@@ -251,6 +261,7 @@ function previewRows(rows, unknownFields, snapshot, importOperationId) {
       if (!locationNames.has(locationName.toLowerCase())) newLocationNames.add(locationName);
       parsedRows.push({
         rowNumber: row.rowNumber,
+        sourceId: row.sourceId || null,
         itemKey: key,
         itemId: existingItem && existingItem._id,
         item: existingItem ? null : { name, categoryId: "", brand: brand || null, specification: specification || null, unit, defaultLocationId: "", lowStockThreshold, expiryWarningDays, note: normalizeText(v["备注"]) },
@@ -267,7 +278,7 @@ function previewRows(rows, unknownFields, snapshot, importOperationId) {
         note: normalizeText(v["备注"]),
       });
     } catch (error) {
-      errors.push({ rowNumber: row.rowNumber, message: error.message || String(error) });
+      errors.push({ rowNumber: row.rowNumber, message: error.message || String(error), issueType: error.issueType || null, issueField: error.issueField || null, suggestedValue: error.suggestedValue || null });
     }
   }
   return {
@@ -372,12 +383,14 @@ async function previewSmartImport(openid, payload) {
   }
   const rows = candidateRows(candidates);
   const preview = previewRows(rows, [], await allUserData(openid), job._id);
+  const candidateById = new Map(candidates.map(candidate => [candidate.id, candidate]));
   preview.rows.forEach(row => {
-    const candidate = candidates[row.rowNumber - 2];
+    const candidate = candidateById.get(row.sourceId);
+    if (!candidate) throw dataError("VALIDATION_ERROR", "导入候选与校验结果不一致，请重新识别");
     row.sourceId = candidate.id;
     row.provenance = [candidate.source.file, candidate.source.sheet, candidate.source.row ? `第${candidate.source.row}行` : candidate.source.sourceText].filter(Boolean).join(" / ");
   });
-  const needsConfirmation = candidates.filter(c => !c.confirmed && (c.confidence < 0.85 || c.warnings.length)).length;
+  const needsConfirmation = candidates.filter(c => !c.excluded && !c.confirmed && (c.confidence < 0.85 || c.warnings.length)).length;
   job.preview = { ...preview, candidates, needsConfirmation };
   if (Buffer.byteLength(JSON.stringify(job)) > 900000) throw dataError("VALIDATION_ERROR", "导入预览过大，请拆分文件");
   if (payload.jobId) {

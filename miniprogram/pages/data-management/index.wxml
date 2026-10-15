@@ -169,7 +169,38 @@
           <view class="smart-review-summary">
             <view><text>{{smartPreview.readyCandidateCount}}</text><view>无需处理</view></view>
             <view><text>{{smartPreview.reviewCandidateCount}}</text><view>需要核对</view></view>
+            <view><text>{{smartPreview.excludedCandidateCount}}</text><view>不导入</view></view>
           </view>
+
+          <view wx:if="{{smartPreview.quickFixIssueCount}}" class="smart-quick-fixes">
+            <view class="smart-row-title">快速处理</view>
+            <view class="smart-row-meta">仅批量处理有明确规则的问题，处理后会立即重新校验。</view>
+            <view wx:if="{{smartPreview.quickFixes.quantityZero}}" class="smart-fix-row">
+              <view><view class="smart-fix-title">{{smartPreview.quickFixes.quantityZero}} 条数量为 0</view><view class="smart-row-meta">零库存不产生入库流水</view></view>
+              <button size="mini" data-action="quantity-zero-exclude" bindtap="applyQuickFix" disabled="{{loading}}">不导入</button>
+            </view>
+            <view wx:if="{{smartPreview.quickFixes.quantitySum}}" class="smart-fix-row">
+              <view><view class="smart-fix-title">{{smartPreview.quickFixes.quantitySum}} 条数量是加法算式</view><view class="smart-row-meta">例如 12+5 将转为 17</view></view>
+              <button size="mini" data-action="quantity-sum" bindtap="applyQuickFix" disabled="{{loading}}">自动计算</button>
+            </view>
+            <view wx:if="{{smartPreview.quickFixes.quantityDefaultOne}}" class="smart-fix-row">
+              <view><view class="smart-fix-title">{{smartPreview.quickFixes.quantityDefaultOne}} 条数量为空或模糊文字</view><view class="smart-row-meta">无法推断精确数量</view></view>
+              <button size="mini" data-action="quantity-default-one" bindtap="applyQuickFix" disabled="{{loading}}">全部填 1</button>
+            </view>
+            <view wx:if="{{smartPreview.quickFixes.expiryConflict}}" class="smart-fix-row smart-fix-row-stack">
+              <view><view class="smart-fix-title">{{smartPreview.quickFixes.expiryConflict}} 条到期日期冲突</view><view class="smart-row-meta">两种处理都合法，请选择你信任的数据</view></view>
+              <view class="smart-fix-actions">
+                <button size="mini" data-action="expiry-calculated" bindtap="applyQuickFix" disabled="{{loading}}">按生产日+保质期</button>
+                <button size="mini" data-action="expiry-manual" bindtap="applyQuickFix" disabled="{{loading}}">保留到期日</button>
+              </view>
+            </view>
+            <view wx:if="{{smartPreview.quickFixes.optionalNumber}}" class="smart-fix-row">
+              <view><view class="smart-fix-title">{{smartPreview.quickFixes.optionalNumber}} 条可选数值无效</view><view class="smart-row-meta">价格或提醒阈值不会影响库存数量</view></view>
+              <button size="mini" data-action="optional-number-clear" bindtap="applyQuickFix" disabled="{{loading}}">全部留空</button>
+            </view>
+          </view>
+
+          <view wx:if="{{smartPreview.manualErrorCount}}" class="smart-warning-block">还有 {{smartPreview.manualErrorCount}} 条无法安全推断，需要逐条编辑。</view>
 
           <view wx:if="{{smartPreview.reviewCandidateCount}}" class="smart-review-heading">
             <view>
@@ -196,7 +227,10 @@
             <view wx:if="{{candidate.hasValidationError}}" class="smart-row-meta">修改后进入下一步会自动重新校验</view>
             <view class="candidate-actions">
               <button size="mini" data-id="{{candidate.id}}" bindtap="editCandidate">{{editingCandidateId === candidate.id ? '收起编辑' : '编辑'}}</button>
-              <view class="candidate-confirm">已核对 <switch checked="{{candidate.confirmed}}" data-id="{{candidate.id}}" bindchange="confirmCandidate" /></view>
+              <view class="candidate-flags">
+                <view class="candidate-confirm">不导入 <switch checked="{{candidate.excluded}}" data-id="{{candidate.id}}" bindchange="excludeCandidate" /></view>
+                <view class="candidate-confirm">已核对 <switch checked="{{candidate.confirmChecked}}" disabled="{{candidate.confirmDisabled}}" data-id="{{candidate.id}}" bindchange="confirmCandidate" /></view>
+              </view>
             </view>
             <view wx:if="{{editingCandidateId === candidate.id}}" class="candidate-editor">
               <view wx:for="{{candidate.editFields}}" wx:for-item="field" wx:key="field" class="field-line">

@@ -96,7 +96,7 @@ async function createImportPlan(payload, provider = new AIProvider()) {
         }
       }
       if (!candidate.values["batch.purchaseDate"]) warnings.push("购买日期缺失");
-      return { id: `text:${index}`, values: candidate.values, source: { file: source.fileName, sourceText: candidate.sourceText, sentence: index }, confidence: candidate.confidence, warnings, confirmed: false };
+      return { id: `text:${index}`, values: candidate.values, source: { file: source.fileName, sourceText: candidate.sourceText, sentence: index }, confidence: candidate.confidence, warnings, confirmed: false, excluded: false };
     });
     if (!plan.textCandidates.length) plan.warnings.push("未识别到库存，可启用 AI 或手动添加候选记录");
     return { source, plan, metrics: provider.metrics || [] };
@@ -221,14 +221,14 @@ function generateCandidates(source, plan, edits = []) {
         if (!values["batch.location"] && table.locationHint) { values["batch.location"] = table.locationHint; warnings.push("位置来自表上下文"); }
         const confidence = Math.min(table.confidence, plan.sheets.find(s => s.index === table.sheetIndex).confidence, ...fields.map(m => m.confidence));
         if (table.mapping.some(m => m.targetField === "UNKNOWN")) warnings.push("存在未指定字段");
-        candidates.push({ id: `${table.id}:${index}`, values, source: { file: source.fileName, sheet: sheet.name, row: index + 1, table: table.id, sourceText: displayRow.join(" | ") }, confidence, warnings, confirmed: false });
+        candidates.push({ id: `${table.id}:${index}`, values, source: { file: source.fileName, sheet: sheet.name, row: index + 1, table: table.id, sourceText: displayRow.join(" | ") }, confidence, warnings, confirmed: false, excluded: false });
       }
     }
   }
   candidates = JSON.parse(JSON.stringify(candidates));
   for (const edit of edits) {
     let candidate = candidates.find(c => c.id === edit.id);
-    if (!candidate && source.sourceType === "text" && /^manual:[\w-]+$/.test(edit.id)) { candidate = { id: edit.id, values: {}, source: { file: source.fileName, sourceText: source.text }, confidence: 1, warnings: ["用户手动录入"], confirmed: false }; candidates.push(candidate); }
+    if (!candidate && source.sourceType === "text" && /^manual:[\w-]+$/.test(edit.id)) { candidate = { id: edit.id, values: {}, source: { file: source.fileName, sourceText: source.text }, confidence: 1, warnings: ["用户手动录入"], confirmed: false, excluded: false }; candidates.push(candidate); }
     if (!candidate) {
       if (source.sourceType !== "text") continue;
       throw new Error("候选不存在");
@@ -238,10 +238,11 @@ function generateCandidates(source, plan, edits = []) {
       candidate.values[field] = value;
     }
     if (edit.confirmed === true) candidate.confirmed = true;
+    if (typeof edit.excluded === "boolean") candidate.excluded = edit.excluded;
   }
   return candidates;
 }
 function candidateRows(candidates) {
-  return candidates.map((c, index) => ({ rowNumber: index + 2, sourceId: c.id, values: Object.fromEntries(Object.entries(c.values).map(([field, value]) => [labels[field], value])) }));
+  return candidates.flatMap((c, index) => c.excluded ? [] : [{ rowNumber: index + 2, sourceId: c.id, values: Object.fromEntries(Object.entries(c.values).map(([field, value]) => [labels[field], value])) }]);
 }
 module.exports = { createImportPlan, detectTableCandidates, applyChanges, generateCandidates, candidateRows };

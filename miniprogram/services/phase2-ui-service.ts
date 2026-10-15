@@ -157,7 +157,7 @@ export interface Phase6ImportPreview {
   totalRows: number;
   validRows: number;
   errorRows: number;
-  errors: Array<{ rowNumber: number; message: string }>;
+  errors: Array<{ rowNumber: number; message: string; issueType?: string | null; issueField?: string | null; suggestedValue?: string | null }>;
   unknownFields: string[];
   creates: {
     itemCount: number;
@@ -174,6 +174,7 @@ export interface SmartCandidate {
   confidence: number;
   warnings: string[];
   confirmed: boolean;
+  excluded?: boolean;
 }
 export interface SmartImportPreview extends Phase6ImportPreview {
   jobId: string;

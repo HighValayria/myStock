@@ -25,6 +25,9 @@ const sheetRoleLabels: Record<string, string> = {
   UNKNOWN: '待判断',
 };
 type SmartCandidate = SmartPreview['candidates'][number];
+type SmartImportError = SmartPreview['errors'][number];
+type CandidateEdit = { id: string; values: Record<string, string | null>; confirmed: boolean; excluded?: boolean };
+type QuickFixAction = 'quantity-default-one' | 'quantity-sum' | 'quantity-zero-exclude' | 'expiry-calculated' | 'expiry-manual' | 'optional-number-clear';
 type SmartCandidateView = SmartCandidate & {
   sourceLabel: string;
   summary: string;
@@ -33,6 +36,8 @@ type SmartCandidateView = SmartCandidate & {
   needsReview: boolean;
   hasValidationError: boolean;
   validationErrors: string[];
+  confirmDisabled: boolean;
+  confirmChecked: boolean;
   editFields: Array<{ field: string; label: string; value: string; required: boolean }>;
 };
 type SmartTable = SmartPreview['plan']['tables'][number];
@@ -53,6 +58,16 @@ type SmartView = SmartPreview & {
   displayCandidates: SmartCandidateView[];
   reviewCandidateCount: number;
   readyCandidateCount: number;
+  excludedCandidateCount: number;
+  quickFixIssueCount: number;
+  manualErrorCount: number;
+  quickFixes: {
+    quantityDefaultOne: number;
+    quantitySum: number;
+    quantityZero: number;
+    expiryConflict: number;
+    optionalNumber: number;
+  };
   selectedTableCount: number;
   plan: SmartPreview['plan'] & {
     sheets: Array<SmartPreview['plan']['sheets'][number] & { roleLabel: string }>;
@@ -63,7 +78,9 @@ type SmartView = SmartPreview & {
 
 function candidateView(candidate: SmartCandidate, validationErrors: string[] = []): SmartCandidateView {
   const values = candidate.values;
-  const hasValidationError = validationErrors.length > 0;
+  const excluded = Boolean(candidate.excluded);
+  const visibleValidationErrors = excluded ? [] : validationErrors;
+  const hasValidationError = visibleValidationErrors.length > 0;
   const needsReview = hasValidationError || (!candidate.confirmed && Boolean(candidate.warnings.length || candidate.confidence < 0.85));
   const sourceLabel = [
     candidate.source.sheet || candidate.source.file,
@@ -73,11 +90,13 @@ function candidateView(candidate: SmartCandidate, validationErrors: string[] = [
     ...candidate,
     sourceLabel,
     summary: `${values['item.name'] || '名称缺失'} · ${values['batch.quantity'] || '数量缺失'}${values['item.unit'] || '个'} · ${values['batch.location'] || '位置未指定'}`,
-    reviewLabel: hasValidationError ? '需要修改' : candidate.confirmed ? '已核对' : needsReview ? '需要核对' : '可直接导入',
-    reviewClass: hasValidationError ? 'error' : candidate.confirmed ? 'confirmed' : '',
-    needsReview,
+    reviewLabel: excluded ? '不导入' : hasValidationError ? '需要修改' : candidate.confirmed ? '已核对' : needsReview ? '需要核对' : '可直接导入',
+    reviewClass: excluded ? 'excluded' : hasValidationError ? 'error' : candidate.confirmed ? 'confirmed' : '',
+    needsReview: excluded ? false : needsReview,
     hasValidationError,
-    validationErrors,
+    validationErrors: visibleValidationErrors,
+    confirmDisabled: excluded || hasValidationError,
+    confirmChecked: !excluded && !hasValidationError && candidate.confirmed,
     editFields: editableFieldChoices.map(choice => ({
       ...choice,
       value: values[choice.field] || '',
@@ -87,8 +106,9 @@ function candidateView(candidate: SmartCandidate, validationErrors: string[] = [
 }
 
 function smartView(preview: SmartPreview, showAllCandidates = false): SmartView {
+  const activeErrors = preview.errors.filter(error => !preview.candidates[error.rowNumber - 2]?.excluded);
   const errorsByCandidateIndex = new Map<number, string[]>();
-  preview.errors.forEach(error => {
+  activeErrors.forEach(error => {
     const candidateIndex = error.rowNumber - 2;
     const messages = errorsByCandidateIndex.get(candidateIndex) || [];
     messages.push(error.message);
@@ -96,6 +116,16 @@ function smartView(preview: SmartPreview, showAllCandidates = false): SmartView 
   });
   const candidates = preview.candidates.map((candidate, index) => candidateView(candidate, errorsByCandidateIndex.get(index) || []));
   const reviewCandidates = candidates.filter(candidate => candidate.needsReview);
+  const excludedCandidateCount = candidates.filter(candidate => candidate.excluded).length;
+  const issueCount = (issueType: string) => activeErrors.filter(error => error.issueType === issueType).length;
+  const quickFixes = {
+    quantityDefaultOne: issueCount('QUANTITY_DEFAULT_ONE'),
+    quantitySum: issueCount('QUANTITY_SUM'),
+    quantityZero: issueCount('QUANTITY_ZERO'),
+    expiryConflict: issueCount('EXPIRY_CONFLICT'),
+    optionalNumber: issueCount('OPTIONAL_NUMBER_INVALID'),
+  };
+  const quickFixIssueCount = Object.values(quickFixes).reduce((total, count) => total + count, 0);
   const tables: SmartTableView[] = preview.plan.tables.map(table => {
     const recognizedFields = table.mapping.map(mapping => mapping.targetField);
     const missingKeyFields = [
@@ -126,7 +156,11 @@ function smartView(preview: SmartPreview, showAllCandidates = false): SmartView 
     reviewCandidates,
     displayCandidates: showAllCandidates ? candidates : reviewCandidates,
     reviewCandidateCount: reviewCandidates.length,
-    readyCandidateCount: candidates.length - reviewCandidates.length,
+    readyCandidateCount: candidates.length - excludedCandidateCount - reviewCandidates.length,
+    excludedCandidateCount,
+    quickFixIssueCount,
+    manualErrorCount: activeErrors.length - quickFixIssueCount,
+    quickFixes,
     selectedTableCount: selectedTables.length,
     plan: {
       ...preview.plan,
@@ -154,7 +188,7 @@ interface DataManagementPageData {
   smartMode: 'file' | 'text';
   allowAI: boolean;
   fieldChoices: typeof fieldChoices;
-  candidateEdits: Array<{ id: string; values: Record<string, string | null>; confirmed: boolean }>;
+  candidateEdits: CandidateEdit[];
   smartDirty: boolean;
   editingCandidateId: string;
   smartDialogOpen: boolean;
@@ -220,6 +254,22 @@ function parseJson(text: string): unknown {
 
 function isXlsxFile(name: string, base64: string): boolean {
   return /\.(xlsx|xls)$/i.test(name) || base64.startsWith('UEs');
+}
+
+function ensureCandidateEdit(edits: CandidateEdit[], candidate: SmartCandidate): CandidateEdit {
+  let edit = edits.find(item => item.id === candidate.id);
+  if (!edit) {
+    edit = { id: candidate.id, values: {}, confirmed: false, excluded: Boolean(candidate.excluded) };
+    edits.push(edit);
+  }
+  return edit;
+}
+
+function setCandidateValue(candidate: SmartCandidate, edit: CandidateEdit, field: string, value: string): void {
+  candidate.values[field] = value;
+  candidate.confirmed = false;
+  edit.values[field] = value;
+  edit.confirmed = false;
 }
 
 async function validateSmartPage(page: DataManagementPage, nextStep?: 1 | 2 | 3): Promise<boolean> {
@@ -385,32 +435,80 @@ Page({
   },
   onCandidateInput(this: DataManagementPage, event: { currentTarget: { dataset: { id: string; field: string } }; detail: { value: string } }) {
     const edits = [...this.data.candidateEdits];
-    let edit = edits.find(e => e.id === event.currentTarget.dataset.id);
-    if (!edit) { edit = { id: event.currentTarget.dataset.id, values: {}, confirmed: false }; edits.push(edit); }
-    edit.values[event.currentTarget.dataset.field] = event.detail.value;
-    edit.confirmed = false;
     const preview = this.data.smartPreview;
     const candidate = preview?.candidates.find(item => item.id === event.currentTarget.dataset.id);
     if (candidate) {
-      candidate.values[event.currentTarget.dataset.field] = event.detail.value;
-      candidate.confirmed = false;
+      const edit = ensureCandidateEdit(edits, candidate);
+      setCandidateValue(candidate, edit, event.currentTarget.dataset.field, event.detail.value);
     }
     this.setData({ candidateEdits: edits, smartPreview: preview ? smartView(preview, this.data.showAllCandidates) : null, smartDirty: true, smartCommitDisabled: true });
   },
   confirmCandidate(this: DataManagementPage, event: { currentTarget: { dataset: { id: string } }; detail: { value: boolean } }) {
     const edits = [...this.data.candidateEdits];
-    let edit = edits.find(e => e.id === event.currentTarget.dataset.id);
-    if (!edit) { edit = { id: event.currentTarget.dataset.id, values: {}, confirmed: false }; edits.push(edit); }
-    edit.confirmed = event.detail.value;
     const preview = this.data.smartPreview;
     const candidate = preview?.candidates.find(item => item.id === event.currentTarget.dataset.id);
-    if (candidate) candidate.confirmed = event.detail.value;
+    if (candidate) {
+      const edit = ensureCandidateEdit(edits, candidate);
+      edit.confirmed = event.detail.value;
+      candidate.confirmed = event.detail.value;
+    }
     this.setData({ candidateEdits: edits, smartPreview: preview ? smartView(preview, this.data.showAllCandidates) : null, smartDirty: true, smartCommitDisabled: true });
+  },
+  excludeCandidate(this: DataManagementPage, event: { currentTarget: { dataset: { id: string } }; detail: { value: boolean } }) {
+    const edits = [...this.data.candidateEdits];
+    const preview = this.data.smartPreview;
+    const candidate = preview?.candidates.find(item => item.id === event.currentTarget.dataset.id);
+    if (candidate) {
+      const edit = ensureCandidateEdit(edits, candidate);
+      candidate.excluded = event.detail.value;
+      candidate.confirmed = false;
+      edit.excluded = event.detail.value;
+      edit.confirmed = false;
+    }
+    this.setData({ candidateEdits: edits, smartPreview: preview ? smartView(preview, this.data.showAllCandidates) : null, smartDirty: true, smartCommitDisabled: true });
+  },
+  async applyQuickFix(this: DataManagementPage, event: { currentTarget: { dataset: { action: QuickFixAction } } }) {
+    const preview = this.data.smartPreview;
+    if (!preview || this.data.loading) return;
+    const action = event.currentTarget.dataset.action;
+    const edits = this.data.candidateEdits.map(edit => ({ ...edit, values: { ...edit.values } }));
+    let changed = 0;
+    for (const issue of preview.errors as SmartImportError[]) {
+      const candidate = preview.candidates[issue.rowNumber - 2];
+      if (!candidate || candidate.excluded) continue;
+      const edit = ensureCandidateEdit(edits, candidate);
+      if (action === 'quantity-default-one' && issue.issueType === 'QUANTITY_DEFAULT_ONE') {
+        setCandidateValue(candidate, edit, 'batch.quantity', '1');
+      } else if (action === 'quantity-sum' && issue.issueType === 'QUANTITY_SUM' && issue.suggestedValue) {
+        setCandidateValue(candidate, edit, 'batch.quantity', issue.suggestedValue);
+      } else if (action === 'quantity-zero-exclude' && issue.issueType === 'QUANTITY_ZERO') {
+        candidate.excluded = true;
+        candidate.confirmed = false;
+        edit.excluded = true;
+        edit.confirmed = false;
+      } else if (action === 'expiry-calculated' && issue.issueType === 'EXPIRY_CONFLICT') {
+        setCandidateValue(candidate, edit, 'batch.expiryDate', '');
+      } else if (action === 'expiry-manual' && issue.issueType === 'EXPIRY_CONFLICT') {
+        setCandidateValue(candidate, edit, 'batch.shelfLifeValue', '');
+        setCandidateValue(candidate, edit, 'batch.shelfLifeUnit', '');
+      } else if (action === 'optional-number-clear' && issue.issueType === 'OPTIONAL_NUMBER_INVALID' && issue.issueField) {
+        setCandidateValue(candidate, edit, issue.issueField, '');
+      } else {
+        continue;
+      }
+      changed += 1;
+    }
+    if (!changed) {
+      wx.showToast({ title: '当前没有可处理的记录', icon: 'none' });
+      return;
+    }
+    this.setData({ candidateEdits: edits, smartPreview: smartView(preview, this.data.showAllCandidates), smartDirty: true, smartCommitDisabled: true });
+    if (await validateSmartPage(this, 2)) wx.showToast({ title: `已处理 ${changed} 条`, icon: 'none' });
   },
   addManualCandidate(this: DataManagementPage) {
     const preview = this.data.smartPreview;
     if (!preview) return;
-    const candidate = { id: `manual:${Date.now()}`, values: {}, source: { file: '手动录入', sourceText: '' }, confidence: 1, warnings: ['用户手动录入'], confirmed: false };
+    const candidate = { id: `manual:${Date.now()}`, values: {}, source: { file: '手动录入', sourceText: '' }, confidence: 1, warnings: ['用户手动录入'], confirmed: false, excluded: false };
     preview.candidates.push(candidate);
     this.setData({ smartPreview: smartView(preview, this.data.showAllCandidates), candidateEdits: [...this.data.candidateEdits, { id: candidate.id, values: {}, confirmed: false }], editingCandidateId: candidate.id, smartDirty: true, smartCommitDisabled: true });
   },
@@ -458,6 +556,7 @@ Page({
     if (!preview) return;
     const edits = [...this.data.candidateEdits];
     for (const candidate of preview.candidates) {
+      if (candidate.excluded || candidate.hasValidationError) continue;
       let edit = edits.find(item => item.id === candidate.id);
       if (!edit) {
         edit = { id: candidate.id, values: {}, confirmed: true };

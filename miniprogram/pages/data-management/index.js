@@ -22,7 +22,9 @@ const sheetRoleLabels = {
 };
 function candidateView(candidate, validationErrors = []) {
     const values = candidate.values;
-    const hasValidationError = validationErrors.length > 0;
+    const excluded = Boolean(candidate.excluded);
+    const visibleValidationErrors = excluded ? [] : validationErrors;
+    const hasValidationError = visibleValidationErrors.length > 0;
     const needsReview = hasValidationError || (!candidate.confirmed && Boolean(candidate.warnings.length || candidate.confidence < 0.85));
     const sourceLabel = [
         candidate.source.sheet || candidate.source.file,
@@ -32,11 +34,13 @@ function candidateView(candidate, validationErrors = []) {
         ...candidate,
         sourceLabel,
         summary: `${values['item.name'] || '名称缺失'} · ${values['batch.quantity'] || '数量缺失'}${values['item.unit'] || '个'} · ${values['batch.location'] || '位置未指定'}`,
-        reviewLabel: hasValidationError ? '需要修改' : candidate.confirmed ? '已核对' : needsReview ? '需要核对' : '可直接导入',
-        reviewClass: hasValidationError ? 'error' : candidate.confirmed ? 'confirmed' : '',
-        needsReview,
+        reviewLabel: excluded ? '不导入' : hasValidationError ? '需要修改' : candidate.confirmed ? '已核对' : needsReview ? '需要核对' : '可直接导入',
+        reviewClass: excluded ? 'excluded' : hasValidationError ? 'error' : candidate.confirmed ? 'confirmed' : '',
+        needsReview: excluded ? false : needsReview,
         hasValidationError,
-        validationErrors,
+        validationErrors: visibleValidationErrors,
+        confirmDisabled: excluded || hasValidationError,
+        confirmChecked: !excluded && !hasValidationError && candidate.confirmed,
         editFields: editableFieldChoices.map(choice => ({
             ...choice,
             value: values[choice.field] || '',
@@ -45,8 +49,9 @@ function candidateView(candidate, validationErrors = []) {
     };
 }
 function smartView(preview, showAllCandidates = false) {
+    const activeErrors = preview.errors.filter(error => !preview.candidates[error.rowNumber - 2]?.excluded);
     const errorsByCandidateIndex = new Map();
-    preview.errors.forEach(error => {
+    activeErrors.forEach(error => {
         const candidateIndex = error.rowNumber - 2;
         const messages = errorsByCandidateIndex.get(candidateIndex) || [];
         messages.push(error.message);
@@ -54,6 +59,16 @@ function smartView(preview, showAllCandidates = false) {
     });
     const candidates = preview.candidates.map((candidate, index) => candidateView(candidate, errorsByCandidateIndex.get(index) || []));
     const reviewCandidates = candidates.filter(candidate => candidate.needsReview);
+    const excludedCandidateCount = candidates.filter(candidate => candidate.excluded).length;
+    const issueCount = (issueType) => activeErrors.filter(error => error.issueType === issueType).length;
+    const quickFixes = {
+        quantityDefaultOne: issueCount('QUANTITY_DEFAULT_ONE'),
+        quantitySum: issueCount('QUANTITY_SUM'),
+        quantityZero: issueCount('QUANTITY_ZERO'),
+        expiryConflict: issueCount('EXPIRY_CONFLICT'),
+        optionalNumber: issueCount('OPTIONAL_NUMBER_INVALID'),
+    };
+    const quickFixIssueCount = Object.values(quickFixes).reduce((total, count) => total + count, 0);
     const tables = preview.plan.tables.map(table => {
         const recognizedFields = table.mapping.map(mapping => mapping.targetField);
         const missingKeyFields = [
@@ -84,7 +99,11 @@ function smartView(preview, showAllCandidates = false) {
         reviewCandidates,
         displayCandidates: showAllCandidates ? candidates : reviewCandidates,
         reviewCandidateCount: reviewCandidates.length,
-        readyCandidateCount: candidates.length - reviewCandidates.length,
+        readyCandidateCount: candidates.length - excludedCandidateCount - reviewCandidates.length,
+        excludedCandidateCount,
+        quickFixIssueCount,
+        manualErrorCount: activeErrors.length - quickFixIssueCount,
+        quickFixes,
         selectedTableCount: selectedTables.length,
         plan: {
             ...preview.plan,
@@ -131,6 +150,20 @@ function parseJson(text) {
 }
 function isXlsxFile(name, base64) {
     return /\.(xlsx|xls)$/i.test(name) || base64.startsWith('UEs');
+}
+function ensureCandidateEdit(edits, candidate) {
+    let edit = edits.find(item => item.id === candidate.id);
+    if (!edit) {
+        edit = { id: candidate.id, values: {}, confirmed: false, excluded: Boolean(candidate.excluded) };
+        edits.push(edit);
+    }
+    return edit;
+}
+function setCandidateValue(candidate, edit, field, value) {
+    candidate.values[field] = value;
+    candidate.confirmed = false;
+    edit.values[field] = value;
+    edit.confirmed = false;
 }
 async function validateSmartPage(page, nextStep) {
     const preview = page.data.smartPreview;
@@ -312,40 +345,90 @@ Page({
     },
     onCandidateInput(event) {
         const edits = [...this.data.candidateEdits];
-        let edit = edits.find(e => e.id === event.currentTarget.dataset.id);
-        if (!edit) {
-            edit = { id: event.currentTarget.dataset.id, values: {}, confirmed: false };
-            edits.push(edit);
-        }
-        edit.values[event.currentTarget.dataset.field] = event.detail.value;
-        edit.confirmed = false;
         const preview = this.data.smartPreview;
         const candidate = preview?.candidates.find(item => item.id === event.currentTarget.dataset.id);
         if (candidate) {
-            candidate.values[event.currentTarget.dataset.field] = event.detail.value;
-            candidate.confirmed = false;
+            const edit = ensureCandidateEdit(edits, candidate);
+            setCandidateValue(candidate, edit, event.currentTarget.dataset.field, event.detail.value);
         }
         this.setData({ candidateEdits: edits, smartPreview: preview ? smartView(preview, this.data.showAllCandidates) : null, smartDirty: true, smartCommitDisabled: true });
     },
     confirmCandidate(event) {
         const edits = [...this.data.candidateEdits];
-        let edit = edits.find(e => e.id === event.currentTarget.dataset.id);
-        if (!edit) {
-            edit = { id: event.currentTarget.dataset.id, values: {}, confirmed: false };
-            edits.push(edit);
-        }
-        edit.confirmed = event.detail.value;
         const preview = this.data.smartPreview;
         const candidate = preview?.candidates.find(item => item.id === event.currentTarget.dataset.id);
-        if (candidate)
+        if (candidate) {
+            const edit = ensureCandidateEdit(edits, candidate);
+            edit.confirmed = event.detail.value;
             candidate.confirmed = event.detail.value;
+        }
         this.setData({ candidateEdits: edits, smartPreview: preview ? smartView(preview, this.data.showAllCandidates) : null, smartDirty: true, smartCommitDisabled: true });
+    },
+    excludeCandidate(event) {
+        const edits = [...this.data.candidateEdits];
+        const preview = this.data.smartPreview;
+        const candidate = preview?.candidates.find(item => item.id === event.currentTarget.dataset.id);
+        if (candidate) {
+            const edit = ensureCandidateEdit(edits, candidate);
+            candidate.excluded = event.detail.value;
+            candidate.confirmed = false;
+            edit.excluded = event.detail.value;
+            edit.confirmed = false;
+        }
+        this.setData({ candidateEdits: edits, smartPreview: preview ? smartView(preview, this.data.showAllCandidates) : null, smartDirty: true, smartCommitDisabled: true });
+    },
+    async applyQuickFix(event) {
+        const preview = this.data.smartPreview;
+        if (!preview || this.data.loading)
+            return;
+        const action = event.currentTarget.dataset.action;
+        const edits = this.data.candidateEdits.map(edit => ({ ...edit, values: { ...edit.values } }));
+        let changed = 0;
+        for (const issue of preview.errors) {
+            const candidate = preview.candidates[issue.rowNumber - 2];
+            if (!candidate || candidate.excluded)
+                continue;
+            const edit = ensureCandidateEdit(edits, candidate);
+            if (action === 'quantity-default-one' && issue.issueType === 'QUANTITY_DEFAULT_ONE') {
+                setCandidateValue(candidate, edit, 'batch.quantity', '1');
+            }
+            else if (action === 'quantity-sum' && issue.issueType === 'QUANTITY_SUM' && issue.suggestedValue) {
+                setCandidateValue(candidate, edit, 'batch.quantity', issue.suggestedValue);
+            }
+            else if (action === 'quantity-zero-exclude' && issue.issueType === 'QUANTITY_ZERO') {
+                candidate.excluded = true;
+                candidate.confirmed = false;
+                edit.excluded = true;
+                edit.confirmed = false;
+            }
+            else if (action === 'expiry-calculated' && issue.issueType === 'EXPIRY_CONFLICT') {
+                setCandidateValue(candidate, edit, 'batch.expiryDate', '');
+            }
+            else if (action === 'expiry-manual' && issue.issueType === 'EXPIRY_CONFLICT') {
+                setCandidateValue(candidate, edit, 'batch.shelfLifeValue', '');
+                setCandidateValue(candidate, edit, 'batch.shelfLifeUnit', '');
+            }
+            else if (action === 'optional-number-clear' && issue.issueType === 'OPTIONAL_NUMBER_INVALID' && issue.issueField) {
+                setCandidateValue(candidate, edit, issue.issueField, '');
+            }
+            else {
+                continue;
+            }
+            changed += 1;
+        }
+        if (!changed) {
+            wx.showToast({ title: '当前没有可处理的记录', icon: 'none' });
+            return;
+        }
+        this.setData({ candidateEdits: edits, smartPreview: smartView(preview, this.data.showAllCandidates), smartDirty: true, smartCommitDisabled: true });
+        if (await validateSmartPage(this, 2))
+            wx.showToast({ title: `已处理 ${changed} 条`, icon: 'none' });
     },
     addManualCandidate() {
         const preview = this.data.smartPreview;
         if (!preview)
             return;
-        const candidate = { id: `manual:${Date.now()}`, values: {}, source: { file: '手动录入', sourceText: '' }, confidence: 1, warnings: ['用户手动录入'], confirmed: false };
+        const candidate = { id: `manual:${Date.now()}`, values: {}, source: { file: '手动录入', sourceText: '' }, confidence: 1, warnings: ['用户手动录入'], confirmed: false, excluded: false };
         preview.candidates.push(candidate);
         this.setData({ smartPreview: smartView(preview, this.data.showAllCandidates), candidateEdits: [...this.data.candidateEdits, { id: candidate.id, values: {}, confirmed: false }], editingCandidateId: candidate.id, smartDirty: true, smartCommitDisabled: true });
     },
@@ -399,6 +482,8 @@ Page({
             return;
         const edits = [...this.data.candidateEdits];
         for (const candidate of preview.candidates) {
+            if (candidate.excluded || candidate.hasValidationError)
+                continue;
             let edit = edits.find(item => item.id === candidate.id);
             if (!edit) {
                 edit = { id: candidate.id, values: {}, confirmed: true };

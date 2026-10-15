@@ -217,6 +217,56 @@ test("T-P6B-A28 combined shelf-life text supplies value and unit", async () => {
   assert.equal(candidate.values["batch.shelfLifeValue"], "21");
   assert.equal(candidate.values["batch.shelfLifeUnit"], "DAY");
 });
+test("T-P6B-A29 repairable import errors expose structured suggestions", async () => {
+  const text = [
+    "物品名称,数量,生产日期,保质期数值,保质期单位,到期日期,单位购买价格",
+    "零库存,0,,,,,",
+    "合并数量,12+5,,,,,",
+    "模糊数量,少量,,,,,",
+    "日期冲突,1,2026-01-01,30,天,2026-02-01,",
+    "无效价格,1,,,,,-2",
+  ].join("\n");
+  const result = await harness.main({ action: "previewSmartImport", payload: { text } });
+  assert(result.ok, JSON.stringify(result));
+  const issueTypes = result.data.errors.map(error => error.issueType);
+  assert.deepEqual(issueTypes, ["QUANTITY_ZERO", "QUANTITY_SUM", "QUANTITY_DEFAULT_ONE", "EXPIRY_CONFLICT", "OPTIONAL_NUMBER_INVALID"]);
+  assert.equal(result.data.errors[1].suggestedValue, "17");
+  assert.equal(result.data.errors[4].issueField, "batch.purchasePrice");
+});
+test("T-P6B-A30 candidate repairs and exclusion are revalidated server-side", async () => {
+  const text = [
+    "物品名称,数量,生产日期,保质期数值,保质期单位,到期日期,单位购买价格",
+    "零库存,0,,,,,",
+    "合并数量,12+5,,,,,",
+    "模糊数量,少量,,,,,",
+    "日期冲突,1,2026-01-01,30,天,2026-02-01,",
+    "无效价格,1,,,,,-2",
+  ].join("\n");
+  const first = await harness.main({ action: "previewSmartImport", payload: { text } });
+  const candidates = first.data.candidates;
+  const repaired = await harness.main({ action: "previewSmartImport", payload: {
+    jobId: first.data.jobId,
+    revision: first.data.revision,
+    candidateEdits: [
+      { id: candidates[0].id, values: {}, excluded: true, confirmed: false },
+      { id: candidates[1].id, values: { "batch.quantity": "17" }, confirmed: false },
+      { id: candidates[2].id, values: { "batch.quantity": "1" }, confirmed: false },
+      { id: candidates[3].id, values: { "batch.expiryDate": "" }, confirmed: false },
+      { id: candidates[4].id, values: { "batch.purchasePrice": "" }, confirmed: false },
+    ],
+  } });
+  assert(repaired.ok, JSON.stringify(repaired));
+  assert.equal(repaired.data.errorRows, 0);
+  assert.equal(repaired.data.validRows, 4);
+  assert.equal(repaired.data.candidates[0].excluded, true);
+  assert.equal(repaired.data.rows.some(row => row.sourceId === candidates[0].id), false);
+  assert.equal(repaired.data.rows.find(row => row.sourceId === candidates[1].id).quantity, 17);
+  assert.equal(repaired.data.rows.find(row => row.sourceId === candidates[3].id).expiryDate, "2026-01-31");
+  const committed = await harness.main({ action: "commitSmartImport", payload: { jobId: repaired.data.jobId, revision: repaired.data.revision, confirmed: true } });
+  assert(committed.ok, JSON.stringify(committed));
+  assert.equal(committed.data.successRows, 4);
+  assert.equal((await harness.db.collection("items").get()).data.some(item => item.name === "零库存"), false);
+});
 async function main() {
   for (const [name, run] of tests) { await run(); console.log("ok - " + name); }
   console.log(`${tests.length} Phase 6B tests passed`);
