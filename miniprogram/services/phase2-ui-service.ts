@@ -194,12 +194,24 @@ export async function previewSmartImport(payload: Record<string, unknown>): Prom
 export interface Phase6CommitProgress extends Phase6ImportResult {
   processedRows: number;
   totalRows: number;
+  retryAttempt?: number;
 }
-export async function commitSmartImport(jobId: string, revision: number, onProgress?: (progress: Phase6CommitProgress) => void): Promise<Phase6ImportResult> {
+export async function commitSmartImport(jobId: string, revision: number, expectedRows: number, onProgress?: (progress: Phase6CommitProgress) => void): Promise<Phase6ImportResult> {
   const total: Phase6ImportResult = { importOperationId: jobId, successRows: 0, skippedRows: 0, createdItems: 0, addedBatches: 0, mergedBatches: 0, failedRows: [] };
   let offset: number | null = 0;
   while (offset !== null) {
-    const result: Phase6ImportResult & { processedRows: number; totalRows: number; nextOffset: number | null } = await callCloudFunction('dataManage', 'commitSmartImport', { jobId, revision, confirmed: true, offset });
+    let result: Phase6ImportResult & { processedRows: number; totalRows: number; nextOffset: number | null } | null = null;
+    for (let attempt = 1; attempt <= 3 && !result; attempt += 1) {
+      try {
+        result = await callCloudFunction('dataManage', 'commitSmartImport', { jobId, revision, confirmed: true, offset });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        if (attempt === 3 || !/network|timeout|timed out|ECONNRESET|fail|system error|网络|超时|连接/i.test(message)) throw error;
+        onProgress?.({ ...total, processedRows: offset, totalRows: expectedRows, retryAttempt: attempt });
+        await new Promise(resolve => setTimeout(resolve, attempt * 600));
+      }
+    }
+    if (!result) throw new Error('云服务调用失败');
     for (const field of ['successRows', 'skippedRows', 'createdItems', 'addedBatches', 'mergedBatches'] as const) total[field] += result[field];
     total.failedRows.push(...result.failedRows);
     onProgress?.({ ...total, processedRows: result.processedRows, totalRows: result.totalRows });
@@ -272,7 +284,15 @@ async function getOpenId(): Promise<string> {
 async function callCloudFunction<T>(name: string, action: string, payload: Record<string, unknown> = {}): Promise<T> {
   initCloud();
   if (!wx.cloud) throw new Error('wx.cloud is not initialized');
-  const response = await wx.cloud.callFunction<CloudFunctionResult<T>>({ name, data: { action, payload } });
+  let response: { result?: CloudFunctionResult<T> };
+  try {
+    response = await wx.cloud.callFunction<CloudFunctionResult<T>>({ name, data: { action, payload } });
+  } catch (error) {
+    const raw = error as { message?: string; errMsg?: string; code?: string; errCode?: string | number };
+    const wrapped = new Error(raw.errMsg || raw.message || '云服务调用失败') as Error & { code?: string };
+    wrapped.code = String(raw.code || raw.errCode || 'CLOUD_CALL_FAILED');
+    throw wrapped;
+  }
   const result = response.result;
   if (!result?.ok) {
     const error = new Error(result?.error?.message || '云服务调用失败') as Error & { code?: string };

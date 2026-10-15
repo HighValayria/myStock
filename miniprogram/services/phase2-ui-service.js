@@ -35,11 +35,25 @@ const inventory_mutation_client_1 = require("./inventory-mutation-client");
 async function previewSmartImport(payload) {
     return callCloudFunction('dataManage', 'previewSmartImport', payload);
 }
-async function commitSmartImport(jobId, revision, onProgress) {
+async function commitSmartImport(jobId, revision, expectedRows, onProgress) {
     const total = { importOperationId: jobId, successRows: 0, skippedRows: 0, createdItems: 0, addedBatches: 0, mergedBatches: 0, failedRows: [] };
     let offset = 0;
     while (offset !== null) {
-        const result = await callCloudFunction('dataManage', 'commitSmartImport', { jobId, revision, confirmed: true, offset });
+        let result = null;
+        for (let attempt = 1; attempt <= 3 && !result; attempt += 1) {
+            try {
+                result = await callCloudFunction('dataManage', 'commitSmartImport', { jobId, revision, confirmed: true, offset });
+            }
+            catch (error) {
+                const message = error instanceof Error ? error.message : String(error);
+                if (attempt === 3 || !/network|timeout|timed out|ECONNRESET|fail|system error|网络|超时|连接/i.test(message))
+                    throw error;
+                onProgress?.({ ...total, processedRows: offset, totalRows: expectedRows, retryAttempt: attempt });
+                await new Promise(resolve => setTimeout(resolve, attempt * 600));
+            }
+        }
+        if (!result)
+            throw new Error('云服务调用失败');
         for (const field of ['successRows', 'skippedRows', 'createdItems', 'addedBatches', 'mergedBatches'])
             total[field] += result[field];
         total.failedRows.push(...result.failedRows);
@@ -63,7 +77,16 @@ async function callCloudFunction(name, action, payload = {}) {
     (0, cloud_1.initCloud)();
     if (!wx.cloud)
         throw new Error('wx.cloud is not initialized');
-    const response = await wx.cloud.callFunction({ name, data: { action, payload } });
+    let response;
+    try {
+        response = await wx.cloud.callFunction({ name, data: { action, payload } });
+    }
+    catch (error) {
+        const raw = error;
+        const wrapped = new Error(raw.errMsg || raw.message || '云服务调用失败');
+        wrapped.code = String(raw.code || raw.errCode || 'CLOUD_CALL_FAILED');
+        throw wrapped;
+    }
     const result = response.result;
     if (!result?.ok) {
         const error = new Error(result?.error?.message || '云服务调用失败');

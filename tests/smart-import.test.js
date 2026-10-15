@@ -188,12 +188,12 @@ test("T-P6B-A25 all chunked rows preserve stable retry IDs", async () => {
     successRows += page.data.successRows;
     calls += 1;
     assert.equal(page.data.totalRows, 104);
-    assert.equal(page.data.processedRows, Math.min(offset + 5, 104));
+    assert.equal(page.data.processedRows, Math.min(offset + 1, 104));
     offset = page.data.nextOffset;
   }
   assert.equal(successRows, 104);
-  assert.equal(calls, 21);
-  const retry = await harness.main({ action: "commitSmartImport", payload }); assert.equal(retry.data.skippedRows, 5);
+  assert.equal(calls, 104);
+  const retry = await harness.main({ action: "commitSmartImport", payload }); assert.equal(retry.data.skippedRows, 1);
 });
 test("T-P6B-A26 manual header correction keeps original data", async () => {
   const job = await createImportPlan({ text: "更新时间,2026-10-10\n东西,数量,单位\n纸巾,3,包" });
@@ -274,9 +274,15 @@ test("T-P6B-A30 candidate repairs and exclusion are revalidated server-side", as
   assert.equal(repaired.data.rows.some(row => row.sourceId === candidates[0].id), false);
   assert.equal(repaired.data.rows.find(row => row.sourceId === candidates[1].id).quantity, 17);
   assert.equal(repaired.data.rows.find(row => row.sourceId === candidates[3].id).expiryDate, "2026-01-31");
-  const committed = await harness.main({ action: "commitSmartImport", payload: { jobId: repaired.data.jobId, revision: repaired.data.revision, confirmed: true } });
-  assert(committed.ok, JSON.stringify(committed));
-  assert.equal(committed.data.successRows, 4);
+  let offset = 0;
+  let successRows = 0;
+  while (offset !== null) {
+    const committed = await harness.main({ action: "commitSmartImport", payload: { jobId: repaired.data.jobId, revision: repaired.data.revision, confirmed: true, offset } });
+    assert(committed.ok, JSON.stringify(committed));
+    successRows += committed.data.successRows;
+    offset = committed.data.nextOffset;
+  }
+  assert.equal(successRows, 4);
   assert.equal((await harness.db.collection("items").get()).data.some(item => item.name === "零库存"), false);
 });
 async function main() {

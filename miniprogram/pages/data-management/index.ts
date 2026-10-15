@@ -577,19 +577,26 @@ Page({
     if (!preview || this.data.loading) return;
     if (this.data.smartDirty || preview.errorRows || preview.needsConfirmation || !preview.validRows) { wx.showToast({ title: '请校验并核对候选记录', icon: 'none' }); return; }
     if (!await modal('确认导入', `将导入 ${preview.validRows} 条库存，并生成入库流水。`)) return;
+    let processedRows = 0;
     this.setData({ loading: true, error: '', smartCommitProgress: `正在导入 0/${preview.validRows}，请勿关闭页面` });
     try {
-      const result = await getPhase2Service().commitSmartImport(preview.jobId, preview.revision, progress => {
-        this.setData({ smartCommitProgress: `正在导入 ${progress.processedRows}/${progress.totalRows}，请勿关闭页面` });
+      const result = await getPhase2Service().commitSmartImport(preview.jobId, preview.revision, preview.validRows, progress => {
+        processedRows = progress.processedRows;
+        const text = progress.retryAttempt
+          ? `网络波动，正在自动重试（${processedRows}/${progress.totalRows}）`
+          : `正在导入 ${processedRows}/${progress.totalRows}，请勿关闭页面`;
+        this.setData({ smartCommitProgress: text });
       });
       this.setData({ importResult: result, smartDialogOpen: false, smartCommitProgress: '' });
       wx.showToast({ title: result.failedRows.length ? '部分导入失败，可重试' : '导入完成', icon: 'none' });
     } catch (error) {
       const message = mapUserError(error);
-      this.setData({ error: message, smartCommitProgress: '导入中断，再次点击“确认导入”可安全继续' });
+      const rawMessage = error instanceof Error ? error.message : String(error);
+      const detail = rawMessage && rawMessage !== message ? `\n详情：${rawMessage.slice(0, 180)}` : '';
+      this.setData({ error: `${message}${detail}`, smartCommitProgress: `已处理 ${processedRows}/${preview.validRows}，导入中断；可安全重试` });
       await new Promise<void>(resolve => wx.showModal({
         title: '导入未完成',
-        content: `${message}\n已成功的记录不会重复入库，可直接重试。`,
+        content: `${message}${detail}\n已成功的记录不会重复入库，可直接重试。`,
         showCancel: false,
         success: () => resolve(),
         fail: () => resolve(),

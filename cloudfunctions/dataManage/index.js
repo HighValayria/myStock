@@ -26,7 +26,7 @@ const EXCEL_HEADERS = ["物品名称", "类别", "品牌", "规格", "数量", "
 const EXCEL_EXPORT_HEADERS = [...EXCEL_HEADERS, "剩余天数", "保质期状态", "库存状态"];
 const FIELD_ALIASES = { 名称: "物品名称", 库存数量: "数量", 单价: "单位购买价格", 购买价格: "单位购买价格", 位置: "存放位置" };
 const PAGE_SIZE = 100;
-const SMART_COMMIT_CHUNK_SIZE = 5;
+const SMART_COMMIT_CHUNK_SIZE = 1;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 function ok(data) { return { ok: true, data }; }
